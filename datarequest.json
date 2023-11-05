@@ -1,0 +1,11 @@
+{ 
+  "records": [
+    {  "_id": "2342",    
+       "_url": "",
+       "product_id": "unique product string",
+       "my_category": "customer category",
+       "product_price": 32.5,
+       "my_tags": [ "one", "two", "three" ]
+    }
+  ]
+}
