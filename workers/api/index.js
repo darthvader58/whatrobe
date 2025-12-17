@@ -137,11 +137,16 @@ async function getClothingItems(request, env) {
   const { results } = await env.DB.prepare(query).bind(...params).all();
 
   // Parse JSON fields and map database fields to frontend format
-  const items = results.map(item => ({
-    ...item,
-    imageUrl: item.image_url, // Map snake_case to camelCase
-    tags: item.tags ? JSON.parse(item.tags) : [],
-  }));
+  const items = results.map(item => {
+    console.log('Processing item:', item.id, 'image_url:', item.image_url);
+    return {
+      ...item,
+      imageUrl: item.image_url, // Map snake_case to camelCase
+      tags: item.tags ? JSON.parse(item.tags) : [],
+    };
+  });
+  
+  console.log('Returning', items.length, 'items for user:', userId);
 
   return new Response(JSON.stringify(items), {
     headers: { 'Content-Type': 'application/json' },
@@ -201,10 +206,8 @@ async function uploadClothingItem(request, env) {
       },
     });
 
-    // Generate public URL
-    const imageUrl = env.ENVIRONMENT === 'development' 
-      ? `/api/images/${imageId}` 
-      : `https://whatrobe-api.rajayshashwat.workers.dev/api/images/${imageId}`;
+    // Generate public URL - always use relative URLs, let frontend handle the base URL
+    const imageUrl = `/api/images/${imageId}`;
 
     // Analyze image with enhanced AI
     const arrayBuffer = await imageFile.arrayBuffer();

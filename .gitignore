@@ -36,3 +36,4 @@ wrangler.toml.backup
 # Environment variables
 .env
 .dev.vars
+.vercel
