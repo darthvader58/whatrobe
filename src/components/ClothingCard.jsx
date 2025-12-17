@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Trash2, Tag } from 'lucide-react';
+import { Trash2, Tag, Edit3 } from 'lucide-react';
 import { deleteClothingItem } from '../lib/api';
 
-const ClothingCard = ({ item, viewMode, onDelete }) => {
+const ClothingCard = ({ item, viewMode, onDelete, onEdit }) => {
   const [deleting, setDeleting] = useState(false);
 
   const handleDelete = async () => {
@@ -64,13 +64,21 @@ const ClothingCard = ({ item, viewMode, onDelete }) => {
           alt={item.category}
           style={styles.gridImage}
         />
-        <button
-          style={styles.deleteOverlay}
-          onClick={handleDelete}
-          disabled={deleting}
-        >
-          <Trash2 size={20} />
-        </button>
+        <div style={styles.overlayButtons}>
+          <button
+            style={styles.editBtn}
+            onClick={() => onEdit && onEdit(item)}
+          >
+            <Edit3 size={18} />
+          </button>
+          <button
+            style={styles.deleteOverlay}
+            onClick={handleDelete}
+            disabled={deleting}
+          >
+            <Trash2 size={18} />
+          </button>
+        </div>
       </div>
       <div style={styles.gridInfo}>
         <h3 style={styles.gridTitle}>{item.category}</h3>

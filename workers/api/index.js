@@ -138,11 +138,7 @@ async function uploadClothingItem(request, env) {
   const imageId = generateId();
   const userId = 'default'; // For now, using default user
   
-  // Ensure default user exists
-  const timestamp = getCurrentTimestamp();
-  await env.DB.prepare(
-    'INSERT OR IGNORE INTO users (id, email, created_at, updated_at) VALUES (?, ?, ?, ?)'
-  ).bind(userId, 'default@example.com', timestamp, timestamp).run();
+  // Skip database for now, just do AI analysis
 
   // Upload image to R2
   await env.IMAGES.put(imageId, imageFile.stream(), {

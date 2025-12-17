@@ -1,0 +1,10 @@
+name = "whatrobe-ai"
+main = "simple-ai.js"
+compatibility_date = "2024-01-01"
+
+[ai]
+binding = "AI"
+remote = true
+
+[vars]
+ENVIRONMENT = "development"

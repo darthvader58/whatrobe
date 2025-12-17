@@ -3,7 +3,7 @@ import multer from 'multer';
 import cors from 'cors';
 
 const app = express();
-const port = 8788;
+const port = 8789;
 
 // Middleware
 app.use(cors());
@@ -18,21 +18,63 @@ let itemIdCounter = 1;
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
-// Mock AI analysis
+// Smarter mock AI analysis
 function mockAnalyzeImage(filename) {
-  const categories = ['tops', 'bottoms', 'dresses', 'outerwear', 'shoes'];
-  const colors = ['black', 'white', 'blue', 'red', 'gray', 'brown'];
-  const styles = ['casual', 'formal', 'athletic', 'vintage'];
-  const fits = ['slim', 'regular', 'relaxed', 'oversized'];
+  const name = filename.toLowerCase();
+  
+  // Smart category detection based on keywords
+  let category = 'tops'; // default
+  if (name.includes('shoe') || name.includes('sneaker') || name.includes('boot') || name.includes('sandal')) {
+    category = 'shoes';
+  } else if (name.includes('pant') || name.includes('jean') || name.includes('trouser') || name.includes('short')) {
+    category = 'bottoms';
+  } else if (name.includes('dress') || name.includes('gown')) {
+    category = 'dresses';
+  } else if (name.includes('jacket') || name.includes('coat') || name.includes('hoodie') || name.includes('sweater')) {
+    category = 'outerwear';
+  } else if (name.includes('shirt') || name.includes('top') || name.includes('blouse') || name.includes('tee')) {
+    category = 'tops';
+  }
+  
+  // Smart color detection
+  let color = 'gray'; // default
+  if (name.includes('black')) color = 'black';
+  else if (name.includes('white')) color = 'white';
+  else if (name.includes('blue')) color = 'blue';
+  else if (name.includes('red')) color = 'red';
+  else if (name.includes('green')) color = 'green';
+  else if (name.includes('yellow')) color = 'yellow';
+  else if (name.includes('brown')) color = 'brown';
+  else if (name.includes('pink')) color = 'pink';
+  
+  // Smart style detection
+  let style = 'casual'; // default
+  if (name.includes('formal') || name.includes('dress') || name.includes('suit')) {
+    style = 'formal';
+  } else if (name.includes('sport') || name.includes('athletic') || name.includes('gym')) {
+    style = 'athletic';
+  } else if (name.includes('vintage') || name.includes('retro')) {
+    style = 'vintage';
+  }
+  
+  // Smart fit detection
+  let fit = 'regular'; // default
+  if (name.includes('slim') || name.includes('tight')) {
+    fit = 'slim';
+  } else if (name.includes('loose') || name.includes('baggy') || name.includes('oversized')) {
+    fit = 'oversized';
+  } else if (name.includes('relaxed')) {
+    fit = 'relaxed';
+  }
   
   return {
-    category: categories[Math.floor(Math.random() * categories.length)],
-    color: colors[Math.floor(Math.random() * colors.length)],
-    style: styles[Math.floor(Math.random() * styles.length)],
-    fit: fits[Math.floor(Math.random() * fits.length)],
+    category,
+    color,
+    style,
+    fit,
     season: 'all-season',
-    tags: ['clothing', 'wardrobe'],
-    description: `A ${colors[Math.floor(Math.random() * colors.length)]} ${categories[Math.floor(Math.random() * categories.length)]} item`
+    tags: ['clothing', 'wardrobe', category],
+    description: `A ${color} ${category} with ${style} style and ${fit} fit`
   };
 }
 
@@ -48,28 +90,62 @@ app.get('/api/clothing', (req, res) => {
   res.json(items);
 });
 
-app.post('/api/clothing', upload.single('image'), (req, res) => {
+app.post('/api/clothing', upload.single('image'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ error: 'No image provided' });
   }
 
-  // Convert buffer to base64 for display
-  const imageUrl = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+  try {
+    // Convert buffer to base64 for display
+    const imageUrl = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+    
+    // Use real AI analysis from Cloudflare Workers
+    const formData = new FormData();
+    const blob = new Blob([req.file.buffer], { type: req.file.mimetype });
+    formData.append('image', blob, req.file.originalname);
+    
+    const aiResponse = await fetch('http://localhost:8788/api/analyze', {
+      method: 'POST',
+      body: formData
+    });
+    
+    let analysis;
+    if (aiResponse.ok) {
+      analysis = await aiResponse.json();
+    } else {
+      // Fallback to smart mock if AI fails
+      console.log('AI analysis failed, using fallback');
+      analysis = mockAnalyzeImage(req.file.originalname);
+    }
+    
+    const item = {
+      id: `item-${itemIdCounter++}`,
+      imageUrl,
+      ...analysis,
+      created_at: Date.now(),
+      updated_at: Date.now()
+    };
+    
+    clothingItems.push(item);
+    
+    res.status(201).json(item);
+  } catch (error) {
+    console.error('Upload error:', error);
+    res.status(500).json({ error: 'Failed to process image' });
+  }
+});
+
+app.put('/api/clothing/:id', (req, res) => {
+  const { id } = req.params;
+  const updates = req.body;
+  const index = clothingItems.findIndex(item => item.id === id);
   
-  // Mock AI analysis
-  const analysis = mockAnalyzeImage(req.file.originalname);
+  if (index === -1) {
+    return res.status(404).json({ error: 'Item not found' });
+  }
   
-  const item = {
-    id: `item-${itemIdCounter++}`,
-    imageUrl,
-    ...analysis,
-    created_at: Date.now(),
-    updated_at: Date.now()
-  };
-  
-  clothingItems.push(item);
-  
-  res.status(201).json(item);
+  clothingItems[index] = { ...clothingItems[index], ...updates, updated_at: Date.now() };
+  res.json(clothingItems[index]);
 });
 
 app.delete('/api/clothing/:id', (req, res) => {
