@@ -243,8 +243,8 @@ async function uploadClothingItem(request, env) {
 
     await env.DB.prepare(
       `INSERT INTO clothing_items 
-      (id, user_id, image_url, image_id, category, color, style, fit, season, tags, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      (id, user_id, image_url, image_id, category, color, secondary_color, style, fit, season, pattern, material, brand, formality, tags, description, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
       .bind(
         id,
@@ -253,10 +253,16 @@ async function uploadClothingItem(request, env) {
         imageId,
         analysis.category,
         analysis.color,
+        analysis.secondaryColor,
         analysis.style,
         analysis.fit,
         analysis.season,
+        analysis.pattern,
+        analysis.material,
+        analysis.brand,
+        analysis.formality,
         JSON.stringify(analysis.tags),
+        analysis.description,
         timestamp,
         timestamp
       )

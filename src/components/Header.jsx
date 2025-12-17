@@ -10,10 +10,10 @@ const Header = () => {
   const [showLogin, setShowLogin] = useState(false);
 
   const navItems = [
-    { path: '/', icon: Home, label: 'Home' },
-    { path: '/wardrobe', icon: ShoppingBag, label: 'Wardrobe' },
-    { path: '/recommendations', icon: Sparkles, label: 'Outfits' },
-    { path: '/shop', icon: Store, label: 'Shop' }
+    { path: '/', label: 'Home' },
+    { path: '/wardrobe', label: 'My Wardrobe' },
+    { path: '/recommendations', label: 'Get Outfits' },
+    { path: '/shop', label: 'Shop' }
   ];
 
   return (
@@ -26,7 +26,7 @@ const Header = () => {
 
         <div style={styles.rightSection}>
           <nav style={styles.nav}>
-            {navItems.map(({ path, icon: Icon, label }) => (
+            {navItems.map(({ path, label }) => (
               <Link
                 key={path}
                 to={path}
@@ -35,7 +35,6 @@ const Header = () => {
                   ...(location.pathname === path ? styles.navLinkActive : {})
                 }}
               >
-                <Icon size={20} />
                 <span style={styles.navLabel}>{label}</span>
               </Link>
             ))}

@@ -16,10 +16,16 @@ CREATE TABLE IF NOT EXISTS clothing_items (
     image_id TEXT NOT NULL,
     category TEXT NOT NULL,
     color TEXT,
+    secondary_color TEXT,
     style TEXT,
     fit TEXT,
     season TEXT,
+    pattern TEXT,
+    material TEXT,
+    brand TEXT,
+    formality TEXT,
     tags TEXT, -- JSON array
+    description TEXT,
     embedding_id TEXT,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
