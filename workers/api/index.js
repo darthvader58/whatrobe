@@ -77,27 +77,46 @@ async function handleGoogleAuth(request, env) {
   const { token } = await request.json();
   
   try {
-    console.log('Verifying Google token...');
+    console.log('Verifying Google token...', 'Token length:', token?.length);
     
     // Verify Google ID token
     const response = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${token}`);
     const userInfo = await response.json();
     
-    console.log('Google tokeninfo response:', userInfo);
+    console.log('Google tokeninfo response status:', response.status);
+    console.log('Google tokeninfo response:', JSON.stringify(userInfo));
     
     if (!response.ok || userInfo.error) {
-      throw new Error(`Token verification failed: ${userInfo.error_description || userInfo.error || 'Unknown error'}`);
+      const errorMsg = `Token verification failed: ${userInfo.error_description || userInfo.error || 'Unknown error'}`;
+      console.error(errorMsg);
+      throw new Error(errorMsg);
+    }
+    
+    // Validate the audience (client ID) matches our OAuth client
+    const expectedClientId = '722171290494-hjqescui9o94of72kvikf0aqrcpra7kj.apps.googleusercontent.com';
+    if (userInfo.aud && userInfo.aud !== expectedClientId) {
+      const errorMsg = `Invalid audience: expected ${expectedClientId}, got ${userInfo.aud}`;
+      console.error(errorMsg);
+      throw new Error(errorMsg);
     }
     
     if (!userInfo.sub) {
       throw new Error('Invalid token - no subject');
     }
+    
+    if (!userInfo.email) {
+      throw new Error('Invalid token - no email');
+    }
+
+    console.log('Token verified successfully for user:', userInfo.email);
 
     // Create or update user in database
     const timestamp = getCurrentTimestamp();
     await env.DB.prepare(
       'INSERT OR REPLACE INTO users (id, email, name, picture, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)'
     ).bind(userInfo.sub, userInfo.email, userInfo.name, userInfo.picture, timestamp, timestamp).run();
+    
+    console.log('User saved to database:', userInfo.sub);
     
     return new Response(JSON.stringify({
       user: {
@@ -110,8 +129,11 @@ async function handleGoogleAuth(request, env) {
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (error) {
-    console.error('Auth error:', error);
-    return new Response(JSON.stringify({ error: 'Authentication failed' }), {
+    console.error('Auth error:', error.message || error);
+    return new Response(JSON.stringify({ 
+      error: 'Authentication failed',
+      details: error.message || 'Unknown error'
+    }), {
       status: 401,
       headers: { 'Content-Type': 'application/json' },
     });
