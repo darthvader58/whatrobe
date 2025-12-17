@@ -201,10 +201,10 @@ async function uploadClothingItem(request, env) {
       },
     });
 
-    // Generate public URL - for local dev, use a placeholder
+    // Generate public URL
     const imageUrl = env.ENVIRONMENT === 'development' 
       ? `/api/images/${imageId}` 
-      : `https://your-r2-domain.com/${imageId}`;
+      : `https://whatrobe-api.rajayshashwat.workers.dev/api/images/${imageId}`;
 
     // Analyze image with enhanced AI
     const arrayBuffer = await imageFile.arrayBuffer();

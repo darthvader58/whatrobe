@@ -48,7 +48,11 @@ export const AuthProvider = ({ children }) => {
       console.log('Token preview:', response.credential?.substring(0, 50) + '...');
       
       // Send the credential to your backend
-      const res = await fetch('http://localhost:8788/api/auth/google', {
+      const apiUrl = import.meta.env.PROD 
+        ? 'https://whatrobe-api.rajayshashwat.workers.dev/api/auth/google'
+        : 'http://localhost:8788/api/auth/google';
+      
+      const res = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

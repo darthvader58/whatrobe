@@ -20,7 +20,7 @@ binding = "IMAGES"
 bucket_name = "whatrobe-images"
 
 [vars]
-ENVIRONMENT = "development"
+ENVIRONMENT = "production"
 
 # For production, add these secrets using: wrangler secret put <KEY>
 # OPENAI_API_KEY = "your-openai-key" (optional, for fallback)

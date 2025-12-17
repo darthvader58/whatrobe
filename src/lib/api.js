@@ -1,19 +1,19 @@
-const API_BASE = 'http://localhost:8788/api';
+const API_BASE = import.meta.env.PROD 
+  ? 'https://whatrobe-api.rajayshashwat.workers.dev/api'
+  : 'http://localhost:8788/api';
 
 // Helper function to get full image URL
 export function getImageUrl(imageUrl) {
   try {
-    console.log('Processing image URL:', imageUrl);
     if (!imageUrl) {
-      console.log('No image URL provided, using placeholder');
       return 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjQwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxOCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPk5vIEltYWdlPC90ZXh0Pjwvc3ZnPg==';
     }
     if (typeof imageUrl === 'string' && imageUrl.startsWith('/api/images/')) {
-      const fullUrl = `http://localhost:8788${imageUrl}`;
-      console.log('Generated full URL:', fullUrl);
-      return fullUrl;
+      const baseUrl = import.meta.env.PROD 
+        ? 'https://whatrobe-api.rajayshashwat.workers.dev'
+        : 'http://localhost:8788';
+      return `${baseUrl}${imageUrl}`;
     }
-    console.log('Using original URL:', imageUrl);
     return imageUrl;
   } catch (error) {
     console.error('Error processing image URL:', error);
