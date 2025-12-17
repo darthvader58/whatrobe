@@ -21,11 +21,19 @@ const Recommendations = () => {
   const loadRecommendations = async () => {
     try {
       setLoading(true);
+      console.log('Loading recommendations with preferences:', preferences);
+      
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      console.log('Current user:', user);
+      
       const data = await getOutfitRecommendations(preferences);
-      setOutfits(data);
+      console.log('Received outfit data:', data);
+      
+      setOutfits(Array.isArray(data) ? data : []);
       setCurrentIndex(0);
     } catch (error) {
       console.error('Failed to load recommendations:', error);
+      setOutfits([]);
     } finally {
       setLoading(false);
     }

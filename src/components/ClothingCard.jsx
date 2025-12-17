@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Trash2, Tag, Edit3 } from 'lucide-react';
-import { deleteClothingItem } from '../lib/api';
+import { deleteClothingItem, getImageUrl } from '../lib/api';
 
 const ClothingCard = ({ item, viewMode, onDelete, onEdit }) => {
   const [deleting, setDeleting] = useState(false);
@@ -31,9 +31,13 @@ const ClothingCard = ({ item, viewMode, onDelete, onEdit }) => {
     return (
       <div className="card" style={styles.listCard}>
         <img
-          src={item.imageUrl || 'https://via.placeholder.com/150'}
+          src={getImageUrl(item.imageUrl) || 'https://via.placeholder.com/150'}
           alt={item.category}
           style={styles.listImage}
+          onError={(e) => {
+            console.log('Image failed to load:', item.imageUrl, 'processed:', getImageUrl(item.imageUrl));
+            e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwIiBoZWlnaHQ9IjE1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPk5vIEltYWdlPC90ZXh0Pjwvc3ZnPg==';
+          }}
         />
         <div style={styles.listInfo}>
           <h3 style={styles.listTitle}>{item.category}</h3>
@@ -60,9 +64,13 @@ const ClothingCard = ({ item, viewMode, onDelete, onEdit }) => {
     <div className="card" style={styles.gridCard}>
       <div style={styles.imageContainer}>
         <img
-          src={item.imageUrl || 'https://via.placeholder.com/300x400'}
+          src={getImageUrl(item.imageUrl) || 'https://via.placeholder.com/300x400'}
           alt={item.category}
           style={styles.gridImage}
+          onError={(e) => {
+            console.log('Image failed to load:', item.imageUrl, 'processed:', getImageUrl(item.imageUrl));
+            e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjQwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxOCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPk5vIEltYWdlPC90ZXh0Pjwvc3ZnPg==';
+          }}
         />
         <div style={styles.overlayButtons}>
           <button

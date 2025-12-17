@@ -6,5 +6,15 @@ compatibility_date = "2024-01-01"
 binding = "AI"
 remote = true
 
+[[d1_databases]]
+binding = "DB"
+database_name = "whatrobe_db"
+database_id = "a24641d7-82af-4e79-825e-b64b55b3ba78"
+
+[[r2_buckets]]
+binding = "IMAGES"
+bucket_name = "whatrobe-images"
+
 [vars]
 ENVIRONMENT = "development"
+R2_PUBLIC_DOMAIN = "your-r2-domain.com"

@@ -12,7 +12,7 @@ export default {
     const corsHeaders = {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-User-ID',
     };
 
     // Handle preflight requests
@@ -24,7 +24,9 @@ export default {
       let response;
 
       // Route handling
-      if (path === '/api/clothing' && request.method === 'GET') {
+      if (path === '/api/auth/google' && request.method === 'POST') {
+        response = await handleGoogleAuth(request, env);
+      } else if (path === '/api/clothing' && request.method === 'GET') {
         response = await getClothingItems(request, env);
       } else if (path === '/api/clothing' && request.method === 'POST') {
         response = await uploadClothingItem(request, env);
@@ -70,11 +72,57 @@ export default {
   },
 };
 
+// Google OAuth handler
+async function handleGoogleAuth(request, env) {
+  const { token } = await request.json();
+  
+  try {
+    console.log('Verifying Google token...');
+    
+    // Verify Google ID token
+    const response = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${token}`);
+    const userInfo = await response.json();
+    
+    console.log('Google tokeninfo response:', userInfo);
+    
+    if (!response.ok || userInfo.error) {
+      throw new Error(`Token verification failed: ${userInfo.error_description || userInfo.error || 'Unknown error'}`);
+    }
+    
+    if (!userInfo.sub) {
+      throw new Error('Invalid token - no subject');
+    }
+
+    // Create or update user in database
+    const timestamp = getCurrentTimestamp();
+    await env.DB.prepare(
+      'INSERT OR REPLACE INTO users (id, email, name, picture, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)'
+    ).bind(userInfo.sub, userInfo.email, userInfo.name, userInfo.picture, timestamp, timestamp).run();
+    
+    return new Response(JSON.stringify({
+      user: {
+        id: userInfo.sub,
+        email: userInfo.email,
+        name: userInfo.name,
+        picture: userInfo.picture
+      }
+    }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (error) {
+    console.error('Auth error:', error);
+    return new Response(JSON.stringify({ error: 'Authentication failed' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
 // Get all clothing items
 async function getClothingItems(request, env) {
   const url = new URL(request.url);
   const category = url.searchParams.get('category');
-  const userId = 'default'; // For now, using default user
+  const userId = request.headers.get('X-User-ID') || 'anonymous';
 
   let query = 'SELECT * FROM clothing_items WHERE user_id = ?';
   const params = [userId];
@@ -88,9 +136,10 @@ async function getClothingItems(request, env) {
 
   const { results } = await env.DB.prepare(query).bind(...params).all();
 
-  // Parse JSON fields
+  // Parse JSON fields and map database fields to frontend format
   const items = results.map(item => ({
     ...item,
+    imageUrl: item.image_url, // Map snake_case to camelCase
     tags: item.tags ? JSON.parse(item.tags) : [],
   }));
 
@@ -122,10 +171,11 @@ async function getClothingItem(id, env) {
   });
 }
 
-// Upload clothing item
+// Upload clothing item with Google OAuth
 async function uploadClothingItem(request, env) {
   const formData = await request.formData();
   const imageFile = formData.get('image');
+  const userId = request.headers.get('X-User-ID') || 'anonymous';
 
   if (!imageFile) {
     return new Response(JSON.stringify({ error: 'No image provided' }), {
@@ -134,90 +184,71 @@ async function uploadClothingItem(request, env) {
     });
   }
 
-  // Generate unique ID for the image
-  const imageId = generateId();
-  const userId = 'default'; // For now, using default user
-  
-  // Skip database for now, just do AI analysis
-
-  // Upload image to R2
-  await env.IMAGES.put(imageId, imageFile.stream(), {
-    httpMetadata: {
-      contentType: imageFile.type,
-    },
-  });
-
-  // Generate public URL - for local dev, use a placeholder
-  const imageUrl = env.ENVIRONMENT === 'development' 
-    ? `/api/images/${imageId}` 
-    : `https://your-r2-domain.com/${imageId}`;
-
-  // Analyze image with AI
-  const arrayBuffer = await imageFile.arrayBuffer();
-  const analysis = await analyzeClothingImage(arrayBuffer, env);
-
-  // Generate embedding for similarity search
-  const embeddingId = `emb-${imageId}`;
-  const embeddingText = `${analysis.category} ${analysis.color} ${analysis.style} ${analysis.fit}`;
-  
-  const embeddings = await env.AI.run('@cf/baai/bge-base-en-v1.5', {
-    text: [embeddingText],
-  });
-
-  // Store embedding in Vectorize (skip in local dev if not available)
   try {
-    await env.VECTORIZE.upsert([
-      {
-        id: embeddingId,
-        values: embeddings.data[0],
-        metadata: {
-          itemId: imageId,
-          category: analysis.category,
-          color: analysis.color,
-        },
+    // Ensure user exists (create anonymous user if needed)
+    const timestamp = getCurrentTimestamp();
+    await env.DB.prepare(
+      'INSERT OR IGNORE INTO users (id, email, name, picture, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)'
+    ).bind(userId, `${userId}@anonymous.com`, 'Anonymous User', '', timestamp, timestamp).run();
+
+    // Generate unique ID for the image
+    const imageId = generateId();
+    
+    // Upload image to R2
+    await env.IMAGES.put(imageId, imageFile.stream(), {
+      httpMetadata: {
+        contentType: imageFile.type,
       },
-    ]);
-  } catch (error) {
-    console.log('Vectorize not available in local dev:', error.message);
-  }
+    });
 
-  // Store in database
-  const id = generateId();
-  const timestamp = getCurrentTimestamp();
+    // Generate public URL - for local dev, use a placeholder
+    const imageUrl = env.ENVIRONMENT === 'development' 
+      ? `/api/images/${imageId}` 
+      : `https://your-r2-domain.com/${imageId}`;
 
-  await env.DB.prepare(
-    `INSERT INTO clothing_items 
-    (id, user_id, image_url, image_id, category, color, style, fit, season, tags, embedding_id, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  )
-    .bind(
-      id,
-      userId,
-      imageUrl,
-      imageId,
-      analysis.category,
-      analysis.color,
-      analysis.style,
-      analysis.fit,
-      analysis.season || 'all-season',
-      JSON.stringify(analysis.tags || []),
-      embeddingId,
-      timestamp,
-      timestamp
+    // Analyze image with enhanced AI
+    const arrayBuffer = await imageFile.arrayBuffer();
+    const analysis = await analyzeClothingImage(arrayBuffer, env);
+
+    // Store in database
+    const id = generateId();
+
+    await env.DB.prepare(
+      `INSERT INTO clothing_items 
+      (id, user_id, image_url, image_id, category, color, style, fit, season, tags, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
-    .run();
+      .bind(
+        id,
+        userId,
+        imageUrl,
+        imageId,
+        analysis.category,
+        analysis.color,
+        analysis.style,
+        analysis.fit,
+        analysis.season,
+        JSON.stringify(analysis.tags),
+        timestamp,
+        timestamp
+      )
+      .run();
 
-  return new Response(
-    JSON.stringify({
+    return new Response(JSON.stringify({
       id,
       imageUrl,
       ...analysis,
-    }),
-    {
+    }), {
       status: 201,
       headers: { 'Content-Type': 'application/json' },
-    }
-  );
+    });
+  } catch (error) {
+    console.error('Upload error:', error);
+    return new Response(JSON.stringify({ error: 'Failed to upload image' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
 }
 
 // Delete clothing item
@@ -254,10 +285,10 @@ async function deleteClothingItem(id, env) {
   });
 }
 
-// Recommend outfits
+// Recommend outfits with enhanced AI
 async function recommendOutfits(request, env) {
   const preferences = await request.json();
-  const userId = 'default';
+  const userId = request.headers.get('X-User-ID') || 'anonymous';
 
   // Get all user's clothing items
   const { results: items } = await env.DB.prepare(
@@ -278,34 +309,15 @@ async function recommendOutfits(request, env) {
     );
   }
 
-  // Generate outfit recommendations using AI
-  const outfits = await generateOutfitRecommendations(items, preferences, env);
+  // Parse tags for each item and map field names
+  const itemsWithTags = items.map(item => ({
+    ...item,
+    imageUrl: item.image_url, // Map for frontend compatibility
+    tags: item.tags ? JSON.parse(item.tags) : [],
+  }));
 
-  // Store outfits in database
-  const timestamp = getCurrentTimestamp();
-  for (const outfit of outfits) {
-    const outfitId = generateId();
-    await env.DB.prepare(
-      `INSERT INTO outfits 
-      (id, user_id, name, occasion, style, weather, items, ai_reason, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    )
-      .bind(
-        outfitId,
-        userId,
-        outfit.name,
-        preferences.occasion || 'casual',
-        preferences.style || 'comfortable',
-        preferences.weather || 'moderate',
-        JSON.stringify(outfit.itemIds),
-        outfit.aiReason,
-        timestamp,
-        timestamp
-      )
-      .run();
-
-    outfit.id = outfitId;
-  }
+  // Generate outfit recommendations using enhanced AI
+  const outfits = await generateOutfitRecommendations(itemsWithTags, preferences, env);
 
   return new Response(JSON.stringify(outfits), {
     headers: { 'Content-Type': 'application/json' },
@@ -378,6 +390,7 @@ async function getImage(imageId, env) {
     object.writeHttpMetadata(headers);
     headers.set('etag', object.httpEtag);
     headers.set('cache-control', 'public, max-age=31536000');
+    headers.set('Access-Control-Allow-Origin', '*');
 
     return new Response(object.body, { headers });
   } catch (error) {

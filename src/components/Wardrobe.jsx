@@ -2,8 +2,10 @@ import React from 'react';
 import ClothingCard from './ClothingCard';
 import { Shirt } from 'lucide-react';
 
-const Wardrobe = ({ items, viewMode, onRefresh }) => {
-  if (items.length === 0) {
+const Wardrobe = ({ items = [], viewMode, onRefresh }) => {
+  console.log('Wardrobe rendering with items:', items);
+  
+  if (!Array.isArray(items) || items.length === 0) {
     return (
       <div style={styles.empty}>
         <div className="card" style={styles.emptyCard}>
@@ -22,14 +24,21 @@ const Wardrobe = ({ items, viewMode, onRefresh }) => {
       ...styles.grid,
       ...(viewMode === 'list' ? styles.gridList : {})
     }}>
-      {items.map(item => (
-        <ClothingCard
-          key={item.id}
-          item={item}
-          viewMode={viewMode}
-          onDelete={onRefresh}
-        />
-      ))}
+      {items.map(item => {
+        try {
+          return (
+            <ClothingCard
+              key={item.id}
+              item={item}
+              viewMode={viewMode}
+              onDelete={onRefresh}
+            />
+          );
+        } catch (error) {
+          console.error('Error rendering clothing card:', error, item);
+          return null;
+        }
+      })}
     </div>
   );
 };

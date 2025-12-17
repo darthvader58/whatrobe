@@ -18,10 +18,13 @@ const MyWardrobe = () => {
   const loadItems = async () => {
     try {
       setLoading(true);
+      console.log('Loading clothing items...');
       const data = await getClothingItems();
-      setItems(data);
+      console.log('Loaded items:', data);
+      setItems(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Failed to load items:', error);
+      setItems([]); // Set empty array on error
     } finally {
       setLoading(false);
     }

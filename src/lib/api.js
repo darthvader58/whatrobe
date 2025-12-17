@@ -1,10 +1,34 @@
 const API_BASE = 'http://localhost:8788/api';
 
+// Helper function to get full image URL
+export function getImageUrl(imageUrl) {
+  try {
+    console.log('Processing image URL:', imageUrl);
+    if (!imageUrl) {
+      console.log('No image URL provided, using placeholder');
+      return 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjQwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxOCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPk5vIEltYWdlPC90ZXh0Pjwvc3ZnPg==';
+    }
+    if (typeof imageUrl === 'string' && imageUrl.startsWith('/api/images/')) {
+      const fullUrl = `http://localhost:8788${imageUrl}`;
+      console.log('Generated full URL:', fullUrl);
+      return fullUrl;
+    }
+    console.log('Using original URL:', imageUrl);
+    return imageUrl;
+  } catch (error) {
+    console.error('Error processing image URL:', error);
+    return 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjQwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxOCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPk5vIEltYWdlPC90ZXh0Pjwvc3ZnPg==';
+  }
+}
+
 // Helper function for API calls
 async function apiCall(endpoint, options = {}) {
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  
   const response = await fetch(`${API_BASE}${endpoint}`, {
     headers: {
       'Content-Type': 'application/json',
+      'X-User-ID': user.id || 'anonymous',
       ...options.headers,
     },
     ...options,
@@ -20,13 +44,8 @@ async function apiCall(endpoint, options = {}) {
 
 // Get all clothing items
 export async function getClothingItems(filters = {}) {
-  const items = JSON.parse(localStorage.getItem('clothingItems') || '[]');
-  
-  if (filters.category && filters.category !== 'all') {
-    return items.filter(item => item.category === filters.category);
-  }
-  
-  return items;
+  const params = new URLSearchParams(filters);
+  return apiCall(`/clothing?${params}`);
 }
 
 // Get a single clothing item
@@ -36,37 +55,23 @@ export async function getClothingItem(id) {
 
 // Upload a new clothing item
 export async function uploadClothingItem(file) {
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
   const formData = new FormData();
   formData.append('image', file);
 
-  // Get AI analysis from Cloudflare Worker
-  const response = await fetch(`${API_BASE}/analyze`, {
+  const response = await fetch(`${API_BASE}/clothing`, {
     method: 'POST',
+    headers: {
+      'X-User-ID': user.id || 'anonymous',
+    },
     body: formData,
   });
 
   if (!response.ok) {
-    throw new Error('Failed to analyze image');
+    throw new Error('Failed to upload image');
   }
 
-  const analysis = await response.json();
-  
-  // Create item with image data URL and AI analysis
-  const imageUrl = URL.createObjectURL(file);
-  const item = {
-    id: `item-${Date.now()}`,
-    imageUrl,
-    ...analysis,
-    created_at: Date.now(),
-    updated_at: Date.now()
-  };
-  
-  // Store in localStorage
-  const items = JSON.parse(localStorage.getItem('clothingItems') || '[]');
-  items.push(item);
-  localStorage.setItem('clothingItems', JSON.stringify(items));
-  
-  return item;
+  return response.json();
 }
 
 // Update a clothing item
@@ -79,58 +84,17 @@ export async function updateClothingItem(id, updates) {
 
 // Delete a clothing item
 export async function deleteClothingItem(id) {
-  const items = JSON.parse(localStorage.getItem('clothingItems') || '[]');
-  const filteredItems = items.filter(item => item.id !== id);
-  localStorage.setItem('clothingItems', JSON.stringify(filteredItems));
-  return { success: true };
+  return apiCall(`/clothing/${id}`, {
+    method: 'DELETE',
+  });
 }
 
 // Get outfit recommendations
 export async function getOutfitRecommendations(preferences = {}) {
-  const items = JSON.parse(localStorage.getItem('clothingItems') || '[]');
-  
-  if (items.length < 2) {
-    return {
-      error: 'Not enough items in wardrobe. Add at least 2 items.',
-      outfits: []
-    };
-  }
-  
-  // Simple outfit generation
-  const { occasion = 'casual', style = 'comfortable' } = preferences;
-  const tops = items.filter(item => item.category === 'tops');
-  const bottoms = items.filter(item => item.category === 'bottoms');
-  const shoes = items.filter(item => item.category === 'shoes');
-  
-  const outfits = [];
-  
-  for (let i = 0; i < Math.min(3, tops.length); i++) {
-    for (let j = 0; j < Math.min(2, bottoms.length); j++) {
-      const outfitItems = [tops[i], bottoms[j]];
-      if (shoes.length > 0) outfitItems.push(shoes[0]);
-      
-      outfits.push({
-        id: `outfit-${Date.now()}-${i}-${j}`,
-        name: `${style} ${occasion} Outfit ${outfits.length + 1}`,
-        items: outfitItems.map(item => ({
-          id: item.id,
-          imageUrl: item.imageUrl,
-          category: item.category,
-          color: item.color
-        })),
-        itemIds: outfitItems.map(item => item.id),
-        occasion,
-        style,
-        description: `A ${style} outfit perfect for ${occasion}`,
-        aiReason: `This combination works well for ${occasion} occasions.`
-      });
-      
-      if (outfits.length >= 5) break;
-    }
-    if (outfits.length >= 5) break;
-  }
-  
-  return outfits;
+  return apiCall('/outfits/recommend', {
+    method: 'POST',
+    body: JSON.stringify(preferences),
+  });
 }
 
 // Save an outfit as favorite

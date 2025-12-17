@@ -1,4 +1,4 @@
-// AI functions using Cloudflare Workers AI
+// Enhanced AI functions using Cloudflare Workers AI
 
 import {
   normalizeCategory,
@@ -7,34 +7,41 @@ import {
   normalizeFit,
 } from './utils';
 
-// Analyze clothing image using Cloudflare Workers AI
+// Analyze clothing image using Cloudflare Workers AI with enhanced prompting
 export async function analyzeClothingImage(imageBuffer, env) {
   try {
-    // Use Llama Vision model for image analysis
     const imageArray = new Uint8Array(imageBuffer);
     
     const response = await env.AI.run('@cf/llava-hf/llava-1.5-7b-hf', {
       image: [...imageArray],
-      prompt: `Analyze this clothing item and provide the following information in JSON format:
+      prompt: `You are a fashion expert analyzing clothing items. Look at this image carefully and identify:
+
+1. CATEGORY: Determine if this is tops, bottoms, dresses, outerwear, shoes, accessories, bags, or jewelry
+2. COLOR: Identify the primary/dominant color
+3. STYLE: Classify the fashion style (casual, formal, athletic, business, vintage, etc.)
+4. FIT: Determine the fit type (slim, regular, relaxed, oversized, fitted, loose, tailored)
+5. SEASON: Best season for this item (spring, summer, fall, winter, all-season)
+6. TAGS: 3-5 descriptive tags
+7. DESCRIPTION: Brief description
+
+Respond ONLY with this JSON format:
 {
-  "category": "one of: tops, bottoms, dresses, outerwear, shoes, accessories, bags, jewelry",
-  "color": "primary color of the item",
-  "style": "style description (casual, formal, athletic, etc)",
-  "fit": "fit type (slim, regular, relaxed, oversized, fitted, loose, tailored)",
-  "season": "best season (spring, summer, fall, winter, all-season)",
+  "category": "exact category from the list above",
+  "color": "primary color name",
+  "style": "style classification", 
+  "fit": "fit type",
+  "season": "best season",
   "tags": ["tag1", "tag2", "tag3"],
   "description": "brief description of the item"
-}
-
-Only respond with valid JSON, no additional text.`,
+}`,
       max_tokens: 512,
     });
 
-    // Parse the AI response
     let analysis;
     try {
-      // Extract JSON from response
       const text = response.response || response.description || '';
+      console.log('AI Response:', text); // Debug logging
+      
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         analysis = JSON.parse(jsonMatch[0]);
@@ -42,32 +49,36 @@ Only respond with valid JSON, no additional text.`,
         throw new Error('No JSON found in response');
       }
     } catch (parseError) {
-      console.error('Failed to parse AI response:', parseError);
-      // Fallback to default values
+      console.error('Failed to parse AI response:', parseError, 'Raw response:', response);
+      
+      // Enhanced fallback based on common patterns
       analysis = {
         category: 'tops',
         color: 'gray',
         style: 'casual',
         fit: 'regular',
         season: 'all-season',
-        tags: ['clothing'],
+        tags: ['clothing', 'wardrobe'],
         description: 'Clothing item',
       };
     }
 
-    // Normalize the values
-    return {
+    // Normalize and validate the values
+    const normalized = {
       category: normalizeCategory(analysis.category),
       color: normalizeColor(analysis.color),
       style: normalizeStyle(analysis.style),
       fit: normalizeFit(analysis.fit),
       season: analysis.season || 'all-season',
-      tags: analysis.tags || [],
+      tags: Array.isArray(analysis.tags) ? analysis.tags.slice(0, 5) : ['clothing'],
       description: analysis.description || 'Clothing item',
     };
+
+    console.log('Normalized analysis:', normalized); // Debug logging
+    return normalized;
+
   } catch (error) {
     console.error('Error analyzing image:', error);
-    // Return default analysis if AI fails
     return {
       category: 'tops',
       color: 'gray',
@@ -80,9 +91,13 @@ Only respond with valid JSON, no additional text.`,
   }
 }
 
-// Generate outfit recommendations
+// Enhanced AI-powered outfit generation
 export async function generateOutfitRecommendations(items, preferences, env) {
   const { occasion = 'casual', style = 'comfortable', weather = 'moderate' } = preferences;
+
+  if (items.length < 2) {
+    return [];
+  }
 
   // Categorize items
   const categorized = {
@@ -96,43 +111,51 @@ export async function generateOutfitRecommendations(items, preferences, env) {
 
   const outfits = [];
 
-  // Generate combinations based on preferences
   try {
-    // Create prompt for AI
+    // Enhanced AI prompt for better outfit generation
     const itemsSummary = items
-      .map(item => `${item.id}: ${item.category} - ${item.color} ${item.style}`)
+      .map(item => `ID: "${item.id}" | ${item.category} - ${item.color} ${item.style} ${item.fit} (${item.description || ''})`)
       .join('\n');
 
-    const prompt = `Given these clothing items:
+    const prompt = `You are a professional fashion stylist. Create stylish outfit combinations from these wardrobe items:
+
 ${itemsSummary}
 
-Create 3-5 outfit combinations for:
+Requirements:
 - Occasion: ${occasion}
-- Style preference: ${style}
+- Style preference: ${style}  
 - Weather: ${weather}
 
-For each outfit, provide:
-1. A catchy name
-2. List of item IDs to combine (2-4 items)
-3. A brief reason why this outfit works
+Fashion Rules:
+- Consider color coordination and complementary colors
+- Match style aesthetics (don't mix formal with athletic unless intentional)
+- Ensure appropriate fit combinations
+- Consider weather appropriateness
+- Create balanced, complete outfits
 
-Format as JSON array:
+Create 5 diverse outfit combinations. Each outfit should have 2-4 items that work well together.
+
+Respond ONLY with this JSON format using the EXACT item IDs from above:
 [
   {
-    "name": "Outfit name",
-    "itemIds": ["id1", "id2", "id3"],
-    "description": "Why this works"
+    "name": "Creative outfit name",
+    "itemIds": ["full-id-1", "full-id-2"],
+    "description": "Why this combination works well and looks great"
   }
-]`;
+]
+
+IMPORTANT: Use the complete item IDs exactly as shown above (including the full string after the dash).`;
 
     const response = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
       prompt: prompt,
-      max_tokens: 1024,
+      max_tokens: 1500,
     });
 
-    let aiOutfits;
+    let aiOutfits = [];
     try {
       const text = response.response || '';
+      console.log('AI Outfit Response:', text); // Debug logging
+      
       const jsonMatch = text.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
         aiOutfits = JSON.parse(jsonMatch[0]);
@@ -146,11 +169,14 @@ Format as JSON array:
 
     // Process AI recommendations
     for (const aiOutfit of aiOutfits) {
+      if (!aiOutfit.itemIds || !Array.isArray(aiOutfit.itemIds)) continue;
+      
       const outfitItems = items.filter(item => aiOutfit.itemIds.includes(item.id));
       
       if (outfitItems.length >= 2) {
         outfits.push({
-          name: aiOutfit.name || 'Suggested Outfit',
+          id: generateId(),
+          name: aiOutfit.name || 'AI Styled Outfit',
           items: outfitItems.map(item => ({
             id: item.id,
             imageUrl: item.image_url,
@@ -161,7 +187,7 @@ Format as JSON array:
           occasion,
           style,
           weather,
-          description: aiOutfit.description,
+          description: aiOutfit.description || 'AI-curated outfit combination',
           aiReason: aiOutfit.description,
         });
       }
@@ -170,17 +196,37 @@ Format as JSON array:
     console.error('Error generating AI recommendations:', error);
   }
 
-  // Fallback: Generate rule-based combinations if AI fails
+  // Enhanced fallback with smarter combinations
   if (outfits.length === 0) {
-    // Strategy 1: Top + Bottom + Shoes
+    console.log('Using fallback outfit generation');
+    
+    // Smart color coordination
+    const getComplementaryItems = (baseItem, category) => {
+      return categorized[category].filter(item => {
+        // Simple color coordination logic
+        if (baseItem.color === item.color) return true; // Same color
+        if (baseItem.color === 'black' || baseItem.color === 'white' || baseItem.color === 'gray') return true; // Neutrals
+        if (item.color === 'black' || item.color === 'white' || item.color === 'gray') return true; // Neutrals
+        return false;
+      });
+    };
+
+    // Strategy 1: Top + Bottom combinations
     if (categorized.tops.length > 0 && categorized.bottoms.length > 0) {
-      for (let i = 0; i < Math.min(3, categorized.tops.length); i++) {
-        for (let j = 0; j < Math.min(2, categorized.bottoms.length); j++) {
-          const outfitItems = [categorized.tops[i], categorized.bottoms[j]];
+      for (const top of categorized.tops.slice(0, 3)) {
+        const compatibleBottoms = getComplementaryItems(top, 'bottoms');
+        
+        for (const bottom of compatibleBottoms.slice(0, 2)) {
+          const outfitItems = [top, bottom];
           
           // Add shoes if available
           if (categorized.shoes.length > 0) {
-            outfitItems.push(categorized.shoes[0]);
+            const compatibleShoes = getComplementaryItems(top, 'shoes');
+            if (compatibleShoes.length > 0) {
+              outfitItems.push(compatibleShoes[0]);
+            } else {
+              outfitItems.push(categorized.shoes[0]);
+            }
           }
           
           // Add outerwear for cold weather
@@ -189,7 +235,8 @@ Format as JSON array:
           }
 
           outfits.push({
-            name: `${style.charAt(0).toUpperCase() + style.slice(1)} ${occasion} Outfit`,
+            id: generateId(),
+            name: `${style.charAt(0).toUpperCase() + style.slice(1)} ${occasion} Look`,
             items: outfitItems.map(item => ({
               id: item.id,
               imageUrl: item.image_url,
@@ -200,8 +247,8 @@ Format as JSON array:
             occasion,
             style,
             weather,
-            description: `A ${style} outfit perfect for ${occasion}`,
-            aiReason: `This combination matches your ${style} style preference and is suitable for ${occasion} occasions.`,
+            description: `A coordinated ${style} outfit with ${top.color} ${top.category} and ${bottom.color} ${bottom.category}`,
+            aiReason: `Color-coordinated combination perfect for ${occasion} occasions.`,
           });
 
           if (outfits.length >= 5) break;
@@ -210,8 +257,8 @@ Format as JSON array:
       }
     }
 
-    // Strategy 2: Dresses + Accessories
-    if (categorized.dresses.length > 0) {
+    // Strategy 2: Dress-based outfits
+    if (categorized.dresses.length > 0 && outfits.length < 5) {
       for (const dress of categorized.dresses.slice(0, 2)) {
         const outfitItems = [dress];
         
@@ -224,7 +271,8 @@ Format as JSON array:
         }
 
         outfits.push({
-          name: `Elegant ${occasion} Dress`,
+          id: generateId(),
+          name: `Elegant ${dress.color} Dress Ensemble`,
           items: outfitItems.map(item => ({
             id: item.id,
             imageUrl: item.image_url,
@@ -235,8 +283,8 @@ Format as JSON array:
           occasion,
           style: 'elegant',
           weather,
-          description: 'A dress-based outfit with complementary accessories',
-          aiReason: 'Dresses provide an elegant, all-in-one solution perfect for various occasions.',
+          description: `A ${dress.color} dress styled with complementary accessories`,
+          aiReason: 'Dresses provide an elegant, complete look that works for many occasions.',
         });
 
         if (outfits.length >= 5) break;
@@ -244,8 +292,13 @@ Format as JSON array:
     }
   }
 
-  // Return up to 5 outfits
+  console.log(`Generated ${outfits.length} outfits`); // Debug logging
   return outfits.slice(0, 5);
+}
+
+// Generate unique ID
+function generateId() {
+  return Math.random().toString(36).substring(2) + Date.now().toString(36);
 }
 
 // Find similar items using vector search
