@@ -155,16 +155,23 @@ export async function getOutfitRecommendations(preferences = {}) {
 }
 
 // Save an outfit as favorite
-export async function saveFavoriteOutfit(outfitId) {
+export async function saveFavoriteOutfit(outfit) {
   return apiCall('/outfits/favorites', {
     method: 'POST',
-    body: JSON.stringify({ outfitId }),
+    body: JSON.stringify({ outfit }),
   });
 }
 
 // Get favorite outfits
 export async function getFavoriteOutfits() {
   return apiCall('/outfits/favorites');
+}
+
+// Delete a favorite outfit
+export async function deleteFavoriteOutfit(outfitId) {
+  return apiCall(`/outfits/favorites/${outfitId}`, {
+    method: 'DELETE',
+  });
 }
 
 // Get shopping recommendations

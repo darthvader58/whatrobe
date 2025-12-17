@@ -39,10 +39,16 @@ const Recommendations = () => {
     }
   };
 
-  const handleSwipe = (direction) => {
+  const handleSwipe = async (direction) => {
     if (direction === 'right') {
       // Save outfit as favorite
-      console.log('Saved outfit:', outfits[currentIndex]);
+      try {
+        const { saveFavoriteOutfit } = await import('../lib/api');
+        await saveFavoriteOutfit(outfits[currentIndex]);
+        console.log('Saved outfit:', outfits[currentIndex]);
+      } catch (error) {
+        console.error('Failed to save outfit:', error);
+      }
     }
     
     if (currentIndex < outfits.length - 1) {

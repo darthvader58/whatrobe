@@ -42,6 +42,9 @@ export default {
         response = await getFavoriteOutfits(request, env);
       } else if (path === '/api/outfits/favorites' && request.method === 'POST') {
         response = await saveFavoriteOutfit(request, env);
+      } else if (path.match(/^\/api\/outfits\/favorites\/[\w-]+$/) && request.method === 'DELETE') {
+        const id = path.split('/').pop();
+        response = await deleteFavoriteOutfit(id, request, env);
       } else if (path === '/api/shop/recommendations' && request.method === 'POST') {
         response = await getShoppingRecommendations(request, env);
       } else if (path.match(/^\/api\/images\/[\w-]+$/) && request.method === 'GET') {
@@ -351,7 +354,7 @@ async function recommendOutfits(request, env) {
 
 // Get favorite outfits
 async function getFavoriteOutfits(request, env) {
-  const userId = 'default';
+  const userId = request.headers.get('X-User-ID') || 'anonymous';
 
   const { results } = await env.DB.prepare(
     'SELECT * FROM outfits WHERE user_id = ? AND is_favorite = 1 ORDER BY updated_at DESC'
@@ -362,6 +365,7 @@ async function getFavoriteOutfits(request, env) {
   const outfits = results.map(outfit => ({
     ...outfit,
     items: JSON.parse(outfit.items),
+    ai_reason: outfit.ai_reason,
   }));
 
   return new Response(JSON.stringify(outfits), {
@@ -371,13 +375,44 @@ async function getFavoriteOutfits(request, env) {
 
 // Save favorite outfit
 async function saveFavoriteOutfit(request, env) {
-  const { outfitId } = await request.json();
+  const { outfit } = await request.json();
+  const userId = request.headers.get('X-User-ID') || 'anonymous';
   const timestamp = getCurrentTimestamp();
+  const id = generateId();
+
+  // Save the complete outfit data
+  await env.DB.prepare(
+    `INSERT INTO outfits 
+    (id, user_id, name, occasion, style, weather, items, ai_reason, is_favorite, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`
+  )
+    .bind(
+      id,
+      userId,
+      outfit.name || 'Saved Outfit',
+      outfit.occasion || null,
+      outfit.style || null,
+      outfit.weather || null,
+      JSON.stringify(outfit.items),
+      outfit.aiReason || outfit.description || null,
+      timestamp,
+      timestamp
+    )
+    .run();
+
+  return new Response(JSON.stringify({ success: true, id }), {
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
+// Delete favorite outfit
+async function deleteFavoriteOutfit(id, request, env) {
+  const userId = request.headers.get('X-User-ID') || 'anonymous';
 
   await env.DB.prepare(
-    'UPDATE outfits SET is_favorite = 1, updated_at = ? WHERE id = ?'
+    'DELETE FROM outfits WHERE id = ? AND user_id = ?'
   )
-    .bind(timestamp, outfitId)
+    .bind(id, userId)
     .run();
 
   return new Response(JSON.stringify({ success: true }), {

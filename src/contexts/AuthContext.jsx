@@ -97,9 +97,15 @@ export const AuthProvider = ({ children }) => {
         const event = new CustomEvent('userSignedIn');
         window.dispatchEvent(event);
       } else {
-        const errorData = await res.text();
+        let errorData;
+        try {
+          errorData = await res.json();
+        } catch {
+          errorData = await res.text();
+        }
         console.error('Authentication failed:', res.status, errorData);
-        alert(`Authentication failed: ${res.status} - ${errorData}`);
+        const errorMsg = errorData.details || errorData.error || errorData;
+        alert(`Authentication failed: ${errorMsg}`);
       }
     } catch (error) {
       console.error('Authentication error:', error);
