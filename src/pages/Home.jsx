@@ -92,16 +92,16 @@ const Home = () => {
         style={styles.stats}
       >
         <div style={styles.stat}>
-          <div style={styles.statNumber}>AI</div>
-          <div style={styles.statLabel}>Powered</div>
+          <div style={styles.statNumber}>∞</div>
+          <div style={styles.statLabel}>Occasions</div>
         </div>
         <div style={styles.stat}>
           <div style={styles.statNumber}>∞</div>
           <div style={styles.statLabel}>Combinations</div>
         </div>
         <div style={styles.stat}>
-          <div style={styles.statNumber}>24/7</div>
-          <div style={styles.statLabel}>Stylist</div>
+          <div style={styles.statNumber}>∞</div>
+          <div style={styles.statLabel}>Fashion Sense</div>
         </div>
       </motion.div>
     </div>
