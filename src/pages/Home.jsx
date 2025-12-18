@@ -104,6 +104,7 @@ const Home = () => {
           <div style={styles.statLabel}>Fashion Sense</div>
         </div>
       </motion.div>
+      
     </div>
   );
 };
