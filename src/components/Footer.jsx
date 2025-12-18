@@ -5,7 +5,7 @@ const Footer = () => {
     <footer style={styles.footer}>
       <div style={styles.container}>
         <p style={styles.text}>
-          Made with <Heart size={16} style={styles.heart} /> by Shashwat Raj
+          Made with &lt;3 by Shashwat Raj
         </p>
       </div>
     </footer>
@@ -35,11 +35,7 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'center',
     gap: '4px',
-  },
-  heart: {
-    color: '#ef4444',
-    fill: '#ef4444',
-  },
+  }
 };
 
 export default Footer;
