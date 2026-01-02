@@ -11,7 +11,7 @@ const Footer = () => {
           <div className="footer-brand">
             <h3 className="footer-brand-title">Whatrobe</h3>
             <p className="footer-brand-description">
-              AI-powered outfit recommendations based on your wardrobe
+              Get trending outfit recommendations based on your wardrobe for the right occasion.
             </p>
             <div className="footer-social-links">
               <a href="https://github.com/darthvader58/whatrobe" className="footer-social-link" target="_blank" rel="noopener noreferrer">
