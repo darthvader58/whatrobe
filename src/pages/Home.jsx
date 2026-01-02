@@ -14,7 +14,7 @@ const Home = () => {
     },
     {
       icon: Sparkles,
-      title: 'AI-Powered Suggestions',
+      title: 'Trending Suggestions',
       description: 'Get personalized outfit recommendations based on occasion, weather, and your style preferences.'
     },
     {
@@ -33,7 +33,7 @@ const Home = () => {
         style={styles.hero}
       >
         <h1 style={styles.title}>
-          Your AI-Powered
+          Your Personal AI
           <br />
           <span style={styles.titleAccent}>Wardrobe Assistant</span>
         </h1>
