@@ -62,3 +62,19 @@ CREATE TABLE IF NOT EXISTS user_preferences (
     occasions TEXT, -- JSON array
     updated_at INTEGER NOT NULL
 );
+-- F
+eedback table
+CREATE TABLE IF NOT EXISTS feedback (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL,
+    rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+    category TEXT NOT NULL,
+    message TEXT NOT NULL,
+    timestamp TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_feedback_category ON feedback(category);
+CREATE INDEX IF NOT EXISTS idx_feedback_rating ON feedback(rating);
+CREATE INDEX IF NOT EXISTS idx_feedback_created ON feedback(created_at);

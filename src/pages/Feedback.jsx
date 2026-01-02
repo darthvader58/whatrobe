@@ -80,6 +80,7 @@ const Feedback = () => {
           </p>
           <button 
             style={styles.backButton}
+            className="back-button"
             onClick={() => setIsSubmitted(false)}
           >
             Submit Another Feedback
@@ -90,7 +91,7 @@ const Feedback = () => {
   }
 
   return (
-    <div style={styles.container}>
+    <div style={styles.container} className="feedback-container">
       <div style={styles.header}>
         <h1 style={styles.title}>We'd Love Your Feedback</h1>
         <p style={styles.subtitle}>
@@ -98,8 +99,8 @@ const Feedback = () => {
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} style={styles.form}>
-        <div style={styles.formGrid}>
+      <form onSubmit={handleSubmit} style={styles.form} className="feedback-form">
+        <div style={styles.formGrid} className="feedback-form-grid">
           {/* Name Field */}
           <div style={styles.formGroup}>
             <label style={styles.label}>Name</label>
@@ -138,6 +139,7 @@ const Feedback = () => {
                 key={star}
                 type="button"
                 onClick={() => handleRatingChange(star)}
+                className="star-button"
                 style={{
                   ...styles.starButton,
                   color: star <= formData.rating ? '#fbbf24' : '#64748b'
@@ -189,6 +191,7 @@ const Feedback = () => {
         <button
           type="submit"
           disabled={isSubmitting}
+          className="submit-button"
           style={{
             ...styles.submitButton,
             opacity: isSubmitting ? 0.7 : 1,

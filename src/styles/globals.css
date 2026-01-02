@@ -189,4 +189,41 @@ input, textarea, select {
     padding: 10px 20px;
     font-size: 14px;
   }
+}/* F
+eedback Form Styles */
+.feedback-form input:focus,
+.feedback-form textarea:focus,
+.feedback-form select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.feedback-form .star-button:hover {
+  transform: scale(1.1);
+}
+
+.feedback-form .submit-button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(99, 102, 241, 0.3);
+}
+
+.feedback-form .back-button:hover {
+  background: var(--surface-lighter);
+  transform: translateY(-2px);
+}
+
+/* Responsive adjustments for feedback form */
+@media (max-width: 768px) {
+  .feedback-form-grid {
+    grid-template-columns: 1fr !important;
+  }
+  
+  .feedback-form {
+    padding: 24px !important;
+  }
+  
+  .feedback-container {
+    padding: 20px 16px !important;
+  }
 }

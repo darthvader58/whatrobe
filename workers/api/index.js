@@ -47,6 +47,8 @@ export default {
         response = await deleteFavoriteOutfit(id, request, env);
       } else if (path === '/api/shop/recommendations' && request.method === 'POST') {
         response = await getShoppingRecommendations(request, env);
+      } else if (path === '/api/feedback' && request.method === 'POST') {
+        response = await submitFeedback(request, env);
       } else if (path.match(/^\/api\/images\/[\w-]+$/) && request.method === 'GET') {
         const imageId = path.split('/').pop();
         response = await getImage(imageId, env);
@@ -462,5 +464,50 @@ async function getImage(imageId, env) {
   } catch (error) {
     console.error('Error serving image:', error);
     return new Response('Error serving image', { status: 500 });
+  }
+}
+
+// Submit feedback
+async function submitFeedback(request, env) {
+  try {
+    const feedbackData = await request.json();
+    const timestamp = getCurrentTimestamp();
+    const id = generateId();
+
+    // Store feedback in database
+    await env.DB.prepare(
+      `INSERT INTO feedback 
+      (id, name, email, rating, category, message, timestamp, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+      .bind(
+        id,
+        feedbackData.name,
+        feedbackData.email,
+        feedbackData.rating,
+        feedbackData.category,
+        feedbackData.message,
+        feedbackData.timestamp,
+        timestamp
+      )
+      .run();
+
+    return new Response(JSON.stringify({
+      success: true,
+      message: 'Feedback submitted successfully',
+      id: id
+    }), {
+      status: 201,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (error) {
+    console.error('Feedback submission error:', error);
+    return new Response(JSON.stringify({ 
+      error: 'Failed to submit feedback',
+      message: error.message 
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 }

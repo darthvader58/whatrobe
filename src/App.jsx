@@ -6,6 +6,7 @@ import Home from './pages/Home';
 import MyWardrobe from './pages/MyWardrobe';
 import Recommendations from './pages/Recommendations';
 import Shop from './pages/Shop';
+import Feedback from './pages/Feedback';
 
 function App() {
   return (
@@ -19,6 +20,7 @@ function App() {
             <Route path="/wardrobe" element={<MyWardrobe />} />
             <Route path="/recommendations" element={<Recommendations />} />
             <Route path="/shop" element={<Shop />} />
+            <Route path="/feedback" element={<Feedback />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
