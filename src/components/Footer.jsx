@@ -44,12 +44,12 @@ const Footer = () => {
         <div className="footer-bottom">
           <div className="footer-bottom-left">
             <p className="footer-copyright">
-              © 2024 Whatrobe. All rights reserved.
+              © 2025 Whatrobe. All rights reserved.
             </p>
           </div>
           <div className="footer-bottom-right">
             <p className="footer-made-with">
-              Made with <Heart size={16} className="footer-heart" /> by Shashwat Raj
+              Made with &lt;3 by Shashwat Raj
             </p>
           </div>
         </div>
