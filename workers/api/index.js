@@ -49,6 +49,15 @@ export default {
         response = await getShoppingRecommendations(request, env);
       } else if (path === '/api/feedback' && request.method === 'POST') {
         response = await submitFeedback(request, env);
+      } else if (path === '/api/debug/db' && request.method === 'GET') {
+        response = await debugDatabase(request, env);
+      } else if (path === '/api/init/db' && request.method === 'POST') {
+        response = await initializeDatabase(request, env);
+      } else if (path === '/api/migrate/user-data' && request.method === 'POST') {
+        response = await migrateUserData(request, env);
+      } else if (path.match(/^\/api\/debug\/user\/[\w-]+$/) && request.method === 'GET') {
+        const userId = path.split('/').pop();
+        response = await debugUserData(userId, env);
       } else if (path.match(/^\/api\/images\/[\w-]+$/) && request.method === 'GET') {
         const imageId = path.split('/').pop();
         response = await getImage(imageId, env);
@@ -151,6 +160,8 @@ async function getClothingItems(request, env) {
   const category = url.searchParams.get('category');
   const userId = request.headers.get('X-User-ID') || 'anonymous';
 
+  console.log('getClothingItems called with userId:', userId, 'category:', category);
+
   let query = 'SELECT * FROM clothing_items WHERE user_id = ?';
   const params = [userId];
 
@@ -161,7 +172,9 @@ async function getClothingItems(request, env) {
 
   query += ' ORDER BY created_at DESC';
 
+  console.log('Executing query:', query, 'with params:', params);
   const { results } = await env.DB.prepare(query).bind(...params).all();
+  console.log('Query returned', results.length, 'results');
 
   // Parse JSON fields and map database fields to frontend format
   const items = results.map(item => {
@@ -504,6 +517,281 @@ async function submitFeedback(request, env) {
     console.error('Feedback submission error:', error);
     return new Response(JSON.stringify({ 
       error: 'Failed to submit feedback',
+      message: error.message 
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+// Debug database status
+async function debugDatabase(request, env) {
+  try {
+    const results = {};
+    
+    // Check if tables exist
+    const tables = await env.DB.prepare("SELECT name FROM sqlite_master WHERE type='table'").all();
+    results.tables = tables.results.map(t => t.name);
+    
+    // Count records in each table
+    for (const table of results.tables) {
+      try {
+        const count = await env.DB.prepare(`SELECT COUNT(*) as count FROM ${table.name}`).first();
+        results[`${table.name}_count`] = count.count;
+      } catch (error) {
+        results[`${table.name}_error`] = error.message;
+      }
+    }
+    
+    // Check recent users
+    try {
+      const recentUsers = await env.DB.prepare("SELECT id, email, name, created_at FROM users ORDER BY created_at DESC LIMIT 5").all();
+      results.recent_users = recentUsers.results;
+    } catch (error) {
+      results.users_error = error.message;
+    }
+    
+    // Check recent clothing items
+    try {
+      const recentItems = await env.DB.prepare("SELECT id, user_id, category, created_at FROM clothing_items ORDER BY created_at DESC LIMIT 5").all();
+      results.recent_clothing_items = recentItems.results;
+    } catch (error) {
+      results.clothing_items_error = error.message;
+    }
+    
+    return new Response(JSON.stringify(results, null, 2), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (error) {
+    console.error('Debug database error:', error);
+    return new Response(JSON.stringify({ 
+      error: 'Failed to debug database',
+      message: error.message 
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+// Initialize database tables
+async function initializeDatabase(request, env) {
+  try {
+    const results = {};
+    
+    // Create users table
+    await env.DB.prepare(`
+      CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        email TEXT UNIQUE,
+        name TEXT,
+        picture TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      )
+    `).run();
+    results.users_table = 'created';
+
+    // Create clothing_items table
+    await env.DB.prepare(`
+      CREATE TABLE IF NOT EXISTS clothing_items (
+        id TEXT PRIMARY KEY,
+        user_id TEXT,
+        image_url TEXT NOT NULL,
+        image_id TEXT NOT NULL,
+        category TEXT NOT NULL,
+        color TEXT,
+        secondary_color TEXT,
+        style TEXT,
+        fit TEXT,
+        season TEXT,
+        pattern TEXT,
+        material TEXT,
+        brand TEXT,
+        formality TEXT,
+        tags TEXT,
+        description TEXT,
+        embedding_id TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      )
+    `).run();
+    results.clothing_items_table = 'created';
+
+    // Create outfits table
+    await env.DB.prepare(`
+      CREATE TABLE IF NOT EXISTS outfits (
+        id TEXT PRIMARY KEY,
+        user_id TEXT,
+        name TEXT,
+        occasion TEXT,
+        style TEXT,
+        weather TEXT,
+        items TEXT NOT NULL,
+        ai_reason TEXT,
+        is_favorite INTEGER DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      )
+    `).run();
+    results.outfits_table = 'created';
+
+    // Create user_preferences table
+    await env.DB.prepare(`
+      CREATE TABLE IF NOT EXISTS user_preferences (
+        user_id TEXT PRIMARY KEY,
+        default_style TEXT,
+        favorite_colors TEXT,
+        preferred_fit TEXT,
+        occasions TEXT,
+        updated_at INTEGER NOT NULL
+      )
+    `).run();
+    results.user_preferences_table = 'created';
+
+    // Create feedback table
+    await env.DB.prepare(`
+      CREATE TABLE IF NOT EXISTS feedback (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        email TEXT NOT NULL,
+        rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+        category TEXT NOT NULL,
+        message TEXT NOT NULL,
+        timestamp TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      )
+    `).run();
+    results.feedback_table = 'created';
+
+    // Create indexes
+    await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_clothing_user ON clothing_items(user_id)').run();
+    await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_clothing_category ON clothing_items(category)').run();
+    await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_clothing_color ON clothing_items(color)').run();
+    await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_outfits_user ON outfits(user_id)').run();
+    await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_outfits_favorite ON outfits(is_favorite)').run();
+    await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_feedback_category ON feedback(category)').run();
+    await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_feedback_rating ON feedback(rating)').run();
+    await env.DB.prepare('CREATE INDEX IF NOT EXISTS idx_feedback_created ON feedback(created_at)').run();
+    results.indexes = 'created';
+    
+    return new Response(JSON.stringify({
+      success: true,
+      message: 'Database initialized successfully',
+      results
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (error) {
+    console.error('Database initialization error:', error);
+    return new Response(JSON.stringify({ 
+      error: 'Failed to initialize database',
+      message: error.message 
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+// Migrate user data from anonymous session to authenticated user
+async function migrateUserData(request, env) {
+  try {
+    const { fromUserId, toUserId } = await request.json();
+    
+    if (!fromUserId || !toUserId || fromUserId === toUserId) {
+      return new Response(JSON.stringify({ 
+        error: 'Invalid user IDs for migration' 
+      }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    console.log(`Migrating data from ${fromUserId} to ${toUserId}`);
+    
+    const results = {};
+    
+    // Migrate clothing items
+    const clothingResult = await env.DB.prepare(
+      'UPDATE clothing_items SET user_id = ? WHERE user_id = ?'
+    ).bind(toUserId, fromUserId).run();
+    results.clothing_items_migrated = clothingResult.changes;
+    
+    // Migrate outfits
+    const outfitsResult = await env.DB.prepare(
+      'UPDATE outfits SET user_id = ? WHERE user_id = ?'
+    ).bind(toUserId, fromUserId).run();
+    results.outfits_migrated = outfitsResult.changes;
+    
+    // Migrate user preferences (if any)
+    const preferencesResult = await env.DB.prepare(
+      'UPDATE user_preferences SET user_id = ? WHERE user_id = ?'
+    ).bind(toUserId, fromUserId).run();
+    results.preferences_migrated = preferencesResult.changes;
+    
+    console.log('Migration results:', results);
+    
+    return new Response(JSON.stringify({
+      success: true,
+      message: 'User data migrated successfully',
+      results
+    }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (error) {
+    console.error('User data migration error:', error);
+    return new Response(JSON.stringify({ 
+      error: 'Failed to migrate user data',
+      message: error.message 
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+// Debug specific user data
+async function debugUserData(userId, env) {
+  try {
+    const results = { userId };
+    
+    // Get user info
+    try {
+      const user = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first();
+      results.user = user;
+    } catch (error) {
+      results.user_error = error.message;
+    }
+    
+    // Get clothing items
+    try {
+      const clothingItems = await env.DB.prepare('SELECT id, category, created_at FROM clothing_items WHERE user_id = ? ORDER BY created_at DESC').bind(userId).all();
+      results.clothing_items = clothingItems.results;
+      results.clothing_count = clothingItems.results.length;
+    } catch (error) {
+      results.clothing_error = error.message;
+    }
+    
+    // Get outfits
+    try {
+      const outfits = await env.DB.prepare('SELECT id, name, is_favorite, created_at FROM outfits WHERE user_id = ? ORDER BY created_at DESC').bind(userId).all();
+      results.outfits = outfits.results;
+      results.outfits_count = outfits.results.length;
+    } catch (error) {
+      results.outfits_error = error.message;
+    }
+    
+    return new Response(JSON.stringify(results, null, 2), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (error) {
+    console.error('Debug user data error:', error);
+    return new Response(JSON.stringify({ 
+      error: 'Failed to debug user data',
       message: error.message 
     }), {
       status: 500,
