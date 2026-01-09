@@ -144,11 +144,21 @@ async function handleGoogleAuth(request, env) {
 
     // Create or update user in database
     const timestamp = getCurrentTimestamp();
-    const result = await env.DB.prepare(
-      'INSERT OR REPLACE INTO users (id, email, name, picture, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)'
-    ).bind(userInfo.sub, userInfo.email, userInfo.name, userInfo.picture, timestamp, timestamp).run();
     
-    console.log('User save result:', result);
+    if (existingUser) {
+      // User exists - UPDATE only (preserves foreign key relationships)
+      const result = await env.DB.prepare(
+        'UPDATE users SET email = ?, name = ?, picture = ?, updated_at = ? WHERE id = ?'
+      ).bind(userInfo.email, userInfo.name, userInfo.picture, timestamp, userInfo.sub).run();
+      console.log('User updated:', result);
+    } else {
+      // New user - INSERT
+      const result = await env.DB.prepare(
+        'INSERT INTO users (id, email, name, picture, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)'
+      ).bind(userInfo.sub, userInfo.email, userInfo.name, userInfo.picture, timestamp, timestamp).run();
+      console.log('User created:', result);
+    }
+    
     console.log('User saved to database:', userInfo.sub);
     
     // Check user's current data
