@@ -32,9 +32,9 @@ const Feedback = () => {
     setIsSubmitting(true);
 
     try {
-      const apiUrl = import.meta.env.PROD 
+      const apiUrl = (import.meta.env.PROD && window.location.hostname !== 'localhost')
         ? 'https://whatrobe-api.rajayshashwat.workers.dev/api/feedback'
-        : 'http://localhost:8788/api/feedback';
+        : 'http://localhost:8787/api/feedback';
 
       const response = await fetch(apiUrl, {
         method: 'POST',

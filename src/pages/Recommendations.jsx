@@ -18,6 +18,20 @@ const Recommendations = () => {
     loadRecommendations();
   }, [preferences]);
 
+  // Listen for user sign-in events to refresh data
+  useEffect(() => {
+    const handleUserSignedIn = () => {
+      console.log('User signed in, refreshing recommendations...');
+      loadRecommendations();
+    };
+
+    window.addEventListener('userSignedIn', handleUserSignedIn);
+    
+    return () => {
+      window.removeEventListener('userSignedIn', handleUserSignedIn);
+    };
+  }, []);
+
   const loadRecommendations = async () => {
     try {
       setLoading(true);

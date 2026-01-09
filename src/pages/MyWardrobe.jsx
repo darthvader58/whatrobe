@@ -19,6 +19,21 @@ const MyWardrobe = () => {
     loadFavoriteOutfits();
   }, []);
 
+  // Listen for user sign-in events to refresh data
+  useEffect(() => {
+    const handleUserSignedIn = () => {
+      console.log('User signed in, refreshing wardrobe data...');
+      loadItems();
+      loadFavoriteOutfits();
+    };
+
+    window.addEventListener('userSignedIn', handleUserSignedIn);
+    
+    return () => {
+      window.removeEventListener('userSignedIn', handleUserSignedIn);
+    };
+  }, []);
+
   const loadItems = async () => {
     try {
       setLoading(true);

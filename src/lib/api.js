@@ -1,6 +1,13 @@
-const API_BASE = import.meta.env.PROD 
+const API_BASE = (import.meta.env.PROD && window.location.hostname !== 'localhost') 
   ? 'https://whatrobe-api.rajayshashwat.workers.dev/api'
-  : 'http://localhost:8788/api';
+  : 'http://localhost:8787/api';
+
+console.log('API_BASE configured as:', API_BASE);
+console.log('Environment details:', {
+  'import.meta.env.PROD': import.meta.env.PROD,
+  'window.location.hostname': window.location.hostname,
+  'window.location.href': window.location.href
+});
 
 // Helper function to get full image URL
 export function getImageUrl(imageUrl) {
@@ -22,9 +29,9 @@ export function getImageUrl(imageUrl) {
     
     // If we found an image ID, construct the URL based on current environment
     if (imageId) {
-      const baseUrl = import.meta.env.PROD 
+      const baseUrl = (import.meta.env.PROD && window.location.hostname !== 'localhost')
         ? 'https://whatrobe-api.rajayshashwat.workers.dev'
-        : 'http://localhost:8788';
+        : 'http://localhost:8787';
       const fullUrl = `${baseUrl}/api/images/${imageId}`;
       console.log('Constructed URL for image ID', imageId, ':', fullUrl);
       return fullUrl;
@@ -67,6 +74,7 @@ async function apiCall(endpoint, options = {}) {
   }
   
   console.log('Making API call to:', `${API_BASE}${endpoint}`, 'with user ID:', userId);
+  console.log('Request options:', options);
   
   const response = await fetch(`${API_BASE}${endpoint}`, {
     headers: {
@@ -77,12 +85,18 @@ async function apiCall(endpoint, options = {}) {
     ...options,
   });
 
+  console.log('API response status:', response.status);
+  console.log('API response headers:', Object.fromEntries(response.headers.entries()));
+
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
+    console.error('API request failed:', error);
     throw new Error(error.message || 'API request failed');
   }
 
-  return response.json();
+  const data = await response.json();
+  console.log('API response data:', data);
+  return data;
 }
 
 // Get all clothing items
@@ -185,4 +199,12 @@ export async function getShoppingRecommendations(wardrobeItems) {
 // Clear anonymous session data when user signs in
 export function clearAnonymousSession() {
   sessionStorage.removeItem('anonymous_session_id');
+}
+
+// Migrate anonymous user data to authenticated user
+export async function migrateUserData(fromUserId, toUserId) {
+  return apiCall('/migrate/user-data', {
+    method: 'POST',
+    body: JSON.stringify({ fromUserId, toUserId }),
+  });
 }

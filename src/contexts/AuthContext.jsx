@@ -65,10 +65,14 @@ export const AuthProvider = ({ children }) => {
       console.log('Token length:', response.credential?.length);
       console.log('Token preview:', response.credential?.substring(0, 50) + '...');
       
+      // Get the current anonymous session ID before clearing it
+      const anonymousSessionId = sessionStorage.getItem('anonymous_session_id');
+      console.log('Current anonymous session ID:', anonymousSessionId);
+      
       // Send the credential to your backend
-      const apiUrl = import.meta.env.PROD 
+      const apiUrl = (import.meta.env.PROD && window.location.hostname !== 'localhost')
         ? 'https://whatrobe-api.rajayshashwat.workers.dev/api/auth/google'
-        : 'http://localhost:8788/api/auth/google';
+        : 'http://localhost:8787/api/auth/google';
       
       console.log('Using API URL:', apiUrl);
       console.log('Environment PROD flag:', import.meta.env.PROD);
@@ -87,10 +91,37 @@ export const AuthProvider = ({ children }) => {
       if (res.ok) {
         const userData = await res.json();
         console.log('User data received:', userData);
+        
+        // If there was an anonymous session, migrate the data
+        if (anonymousSessionId && userData.user.id !== anonymousSessionId) {
+          console.log('Migrating data from anonymous session to authenticated user...');
+          try {
+            const migrationResponse = await fetch(`${apiUrl.replace('/auth/google', '/migrate/user-data')}`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                fromUserId: anonymousSessionId,
+                toUserId: userData.user.id
+              }),
+            });
+            
+            if (migrationResponse.ok) {
+              const migrationResult = await migrationResponse.json();
+              console.log('Data migration successful:', migrationResult);
+            } else {
+              console.error('Data migration failed:', await migrationResponse.text());
+            }
+          } catch (migrationError) {
+            console.error('Error during data migration:', migrationError);
+          }
+        }
+        
         setUser(userData.user);
         localStorage.setItem('user', JSON.stringify(userData.user));
         
-        // Clear anonymous session data when user signs in
+        // Clear anonymous session data after successful migration
         sessionStorage.removeItem('anonymous_session_id');
         
         // Close any open modals
