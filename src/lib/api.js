@@ -1,12 +1,15 @@
-const API_BASE = (import.meta.env.PROD && window.location.hostname !== 'localhost') 
-  ? 'https://whatrobe-api.rajayshashwat.workers.dev/api'
-  : 'http://localhost:8787/api';
+const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+  ? 'http://localhost:8787/api'
+  : 'https://whatrobe-api.rajayshashwat.workers.dev/api';
 
 console.log('API_BASE configured as:', API_BASE);
 console.log('Environment details:', {
   'import.meta.env.PROD': import.meta.env.PROD,
+  'import.meta.env.DEV': import.meta.env.DEV,
+  'import.meta.env.MODE': import.meta.env.MODE,
   'window.location.hostname': window.location.hostname,
-  'window.location.href': window.location.href
+  'window.location.href': window.location.href,
+  'window.location.port': window.location.port
 });
 
 // Helper function to get full image URL
@@ -29,9 +32,9 @@ export function getImageUrl(imageUrl) {
     
     // If we found an image ID, construct the URL based on current environment
     if (imageId) {
-      const baseUrl = (import.meta.env.PROD && window.location.hostname !== 'localhost')
-        ? 'https://whatrobe-api.rajayshashwat.workers.dev'
-        : 'http://localhost:8787';
+      const baseUrl = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+        ? 'http://localhost:8787'
+        : 'https://whatrobe-api.rajayshashwat.workers.dev';
       const fullUrl = `${baseUrl}/api/images/${imageId}`;
       console.log('Constructed URL for image ID', imageId, ':', fullUrl);
       return fullUrl;

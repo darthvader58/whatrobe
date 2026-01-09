@@ -70,9 +70,9 @@ export const AuthProvider = ({ children }) => {
       console.log('Current anonymous session ID:', anonymousSessionId);
       
       // Send the credential to your backend
-      const apiUrl = (import.meta.env.PROD && window.location.hostname !== 'localhost')
-        ? 'https://whatrobe-api.rajayshashwat.workers.dev/api/auth/google'
-        : 'http://localhost:8787/api/auth/google';
+      const apiUrl = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+        ? 'http://localhost:8787/api/auth/google'
+        : 'https://whatrobe-api.rajayshashwat.workers.dev/api/auth/google';
       
       console.log('Using API URL:', apiUrl);
       console.log('Environment PROD flag:', import.meta.env.PROD);
