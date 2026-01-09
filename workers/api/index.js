@@ -58,6 +58,8 @@ export default {
       } else if (path.match(/^\/api\/debug\/user\/[\w-]+$/) && request.method === 'GET') {
         const userId = path.split('/').pop();
         response = await debugUserData(userId, env);
+      } else if (path === '/api/debug/headers' && request.method === 'GET') {
+        response = await debugHeaders(request, env);
       } else if (path.match(/^\/api\/images\/[\w-]+$/) && request.method === 'GET') {
         const imageId = path.split('/').pop();
         response = await getImage(imageId, env);
@@ -91,6 +93,7 @@ async function handleGoogleAuth(request, env) {
   const { token } = await request.json();
   
   try {
+    console.log('=== GOOGLE AUTH START ===');
     console.log('Verifying Google token...', 'Token length:', token?.length);
     
     // Verify Google ID token
@@ -122,15 +125,27 @@ async function handleGoogleAuth(request, env) {
       throw new Error('Invalid token - no email');
     }
 
-    console.log('Token verified successfully for user:', userInfo.email);
+    console.log('Token verified successfully for user:', userInfo.email, 'ID:', userInfo.sub);
+
+    // Check if user already exists
+    const existingUser = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(userInfo.sub).first();
+    console.log('Existing user check:', existingUser ? 'Found' : 'Not found');
 
     // Create or update user in database
     const timestamp = getCurrentTimestamp();
-    await env.DB.prepare(
+    const result = await env.DB.prepare(
       'INSERT OR REPLACE INTO users (id, email, name, picture, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)'
     ).bind(userInfo.sub, userInfo.email, userInfo.name, userInfo.picture, timestamp, timestamp).run();
     
+    console.log('User save result:', result);
     console.log('User saved to database:', userInfo.sub);
+    
+    // Check user's current data
+    const clothingCount = await env.DB.prepare('SELECT COUNT(*) as count FROM clothing_items WHERE user_id = ?').bind(userInfo.sub).first();
+    const outfitsCount = await env.DB.prepare('SELECT COUNT(*) as count FROM outfits WHERE user_id = ?').bind(userInfo.sub).first();
+    console.log('User data summary - Clothing items:', clothingCount.count, 'Outfits:', outfitsCount.count);
+    
+    console.log('=== GOOGLE AUTH SUCCESS ===');
     
     return new Response(JSON.stringify({
       user: {
@@ -143,7 +158,7 @@ async function handleGoogleAuth(request, env) {
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (error) {
-    console.error('Auth error:', error.message || error);
+    console.error('=== GOOGLE AUTH ERROR ===', error.message || error);
     return new Response(JSON.stringify({ 
       error: 'Authentication failed',
       details: error.message || 'Unknown error'
@@ -160,7 +175,9 @@ async function getClothingItems(request, env) {
   const category = url.searchParams.get('category');
   const userId = request.headers.get('X-User-ID') || 'anonymous';
 
+  console.log('=== GET CLOTHING ITEMS ===');
   console.log('getClothingItems called with userId:', userId, 'category:', category);
+  console.log('Request headers:', Object.fromEntries(request.headers.entries()));
 
   let query = 'SELECT * FROM clothing_items WHERE user_id = ?';
   const params = [userId];
@@ -174,7 +191,7 @@ async function getClothingItems(request, env) {
 
   console.log('Executing query:', query, 'with params:', params);
   const { results } = await env.DB.prepare(query).bind(...params).all();
-  console.log('Query returned', results.length, 'results');
+  console.log('Query returned', results.length, 'results for user:', userId);
 
   // Parse JSON fields and map database fields to frontend format
   const items = results.map(item => {
@@ -186,7 +203,7 @@ async function getClothingItems(request, env) {
     };
   });
   
-  console.log('Returning', items.length, 'items for user:', userId);
+  console.log('=== RETURNING', items.length, 'ITEMS ===');
 
   return new Response(JSON.stringify(items), {
     headers: { 'Content-Type': 'application/json' },
@@ -792,6 +809,36 @@ async function debugUserData(userId, env) {
     console.error('Debug user data error:', error);
     return new Response(JSON.stringify({ 
       error: 'Failed to debug user data',
+      message: error.message 
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+// Debug request headers
+async function debugHeaders(request, env) {
+  try {
+    const headers = {};
+    for (const [key, value] of request.headers.entries()) {
+      headers[key] = value;
+    }
+    
+    const userId = request.headers.get('X-User-ID') || 'not-provided';
+    
+    return new Response(JSON.stringify({
+      userId: userId,
+      allHeaders: headers,
+      url: request.url,
+      method: request.method
+    }, null, 2), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (error) {
+    console.error('Debug headers error:', error);
+    return new Response(JSON.stringify({ 
+      error: 'Failed to debug headers',
       message: error.message 
     }), {
       status: 500,
