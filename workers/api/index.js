@@ -8,6 +8,13 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname;
 
+    // Enable foreign key constraints for all database operations
+    try {
+      await env.DB.prepare('PRAGMA foreign_keys = ON').run();
+    } catch (error) {
+      console.log('Foreign keys already enabled or not supported');
+    }
+
     // CORS headers
     const corsHeaders = {
       'Access-Control-Allow-Origin': '*',
@@ -629,7 +636,11 @@ async function initializeDatabase(request, env) {
   try {
     const results = {};
     
-    // Create users table
+    // Enable foreign key constraints
+    await env.DB.prepare('PRAGMA foreign_keys = ON').run();
+    results.foreign_keys = 'enabled';
+    
+    // Create users table first (referenced by other tables)
     await env.DB.prepare(`
       CREATE TABLE IF NOT EXISTS users (
         id TEXT PRIMARY KEY,
@@ -642,11 +653,11 @@ async function initializeDatabase(request, env) {
     `).run();
     results.users_table = 'created';
 
-    // Create clothing_items table
+    // Create clothing_items table with foreign key constraint
     await env.DB.prepare(`
       CREATE TABLE IF NOT EXISTS clothing_items (
         id TEXT PRIMARY KEY,
-        user_id TEXT,
+        user_id TEXT NOT NULL,
         image_url TEXT NOT NULL,
         image_id TEXT NOT NULL,
         category TEXT NOT NULL,
@@ -663,16 +674,17 @@ async function initializeDatabase(request, env) {
         description TEXT,
         embedding_id TEXT,
         created_at INTEGER NOT NULL,
-        updated_at INTEGER NOT NULL
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )
     `).run();
     results.clothing_items_table = 'created';
 
-    // Create outfits table
+    // Create outfits table with foreign key constraint
     await env.DB.prepare(`
       CREATE TABLE IF NOT EXISTS outfits (
         id TEXT PRIMARY KEY,
-        user_id TEXT,
+        user_id TEXT NOT NULL,
         name TEXT,
         occasion TEXT,
         style TEXT,
@@ -681,12 +693,13 @@ async function initializeDatabase(request, env) {
         ai_reason TEXT,
         is_favorite INTEGER DEFAULT 0,
         created_at INTEGER NOT NULL,
-        updated_at INTEGER NOT NULL
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )
     `).run();
     results.outfits_table = 'created';
 
-    // Create user_preferences table
+    // Create user_preferences table with foreign key constraint
     await env.DB.prepare(`
       CREATE TABLE IF NOT EXISTS user_preferences (
         user_id TEXT PRIMARY KEY,
@@ -694,12 +707,13 @@ async function initializeDatabase(request, env) {
         favorite_colors TEXT,
         preferred_fit TEXT,
         occasions TEXT,
-        updated_at INTEGER NOT NULL
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )
     `).run();
     results.user_preferences_table = 'created';
 
-    // Create feedback table
+    // Create feedback table (no foreign key needed)
     await env.DB.prepare(`
       CREATE TABLE IF NOT EXISTS feedback (
         id TEXT PRIMARY KEY,
@@ -727,7 +741,7 @@ async function initializeDatabase(request, env) {
     
     return new Response(JSON.stringify({
       success: true,
-      message: 'Database initialized successfully',
+      message: 'Database initialized successfully with foreign key constraints',
       results
     }), {
       status: 200,
