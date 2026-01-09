@@ -727,33 +727,63 @@ async function migrateUserData(request, env) {
       });
     }
 
-    console.log(`Migrating data from ${fromUserId} to ${toUserId}`);
+    console.log(`=== MIGRATION START: ${fromUserId} -> ${toUserId} ===`);
+    
+    // Check if the target user already has data
+    const existingClothing = await env.DB.prepare('SELECT COUNT(*) as count FROM clothing_items WHERE user_id = ?').bind(toUserId).first();
+    const existingOutfits = await env.DB.prepare('SELECT COUNT(*) as count FROM outfits WHERE user_id = ?').bind(toUserId).first();
+    
+    console.log('Target user existing data:', {
+      clothing: existingClothing.count,
+      outfits: existingOutfits.count
+    });
+    
+    // Check if the source user has data to migrate
+    const sourceClothing = await env.DB.prepare('SELECT COUNT(*) as count FROM clothing_items WHERE user_id = ?').bind(fromUserId).first();
+    const sourceOutfits = await env.DB.prepare('SELECT COUNT(*) as count FROM outfits WHERE user_id = ?').bind(fromUserId).first();
+    
+    console.log('Source user data to migrate:', {
+      clothing: sourceClothing.count,
+      outfits: sourceOutfits.count
+    });
     
     const results = {};
     
-    // Migrate clothing items
-    const clothingResult = await env.DB.prepare(
-      'UPDATE clothing_items SET user_id = ? WHERE user_id = ?'
-    ).bind(toUserId, fromUserId).run();
-    results.clothing_items_migrated = clothingResult.changes;
+    // Only migrate if target user has no data and source user has data
+    if (existingClothing.count === 0 && sourceClothing.count > 0) {
+      const clothingResult = await env.DB.prepare(
+        'UPDATE clothing_items SET user_id = ? WHERE user_id = ?'
+      ).bind(toUserId, fromUserId).run();
+      results.clothing_items_migrated = clothingResult.changes;
+      console.log('Migrated clothing items:', clothingResult.changes);
+    } else {
+      results.clothing_items_migrated = 0;
+      results.clothing_skip_reason = existingClothing.count > 0 ? 'target_has_data' : 'source_empty';
+    }
     
-    // Migrate outfits
-    const outfitsResult = await env.DB.prepare(
-      'UPDATE outfits SET user_id = ? WHERE user_id = ?'
-    ).bind(toUserId, fromUserId).run();
-    results.outfits_migrated = outfitsResult.changes;
+    // Only migrate if target user has no data and source user has data
+    if (existingOutfits.count === 0 && sourceOutfits.count > 0) {
+      const outfitsResult = await env.DB.prepare(
+        'UPDATE outfits SET user_id = ? WHERE user_id = ?'
+      ).bind(toUserId, fromUserId).run();
+      results.outfits_migrated = outfitsResult.changes;
+      console.log('Migrated outfits:', outfitsResult.changes);
+    } else {
+      results.outfits_migrated = 0;
+      results.outfits_skip_reason = existingOutfits.count > 0 ? 'target_has_data' : 'source_empty';
+    }
     
-    // Migrate user preferences (if any)
+    // Always try to migrate preferences (they can be overwritten)
     const preferencesResult = await env.DB.prepare(
       'UPDATE user_preferences SET user_id = ? WHERE user_id = ?'
     ).bind(toUserId, fromUserId).run();
     results.preferences_migrated = preferencesResult.changes;
     
-    console.log('Migration results:', results);
+    console.log('=== MIGRATION COMPLETE ===', results);
     
     return new Response(JSON.stringify({
       success: true,
-      message: 'User data migrated successfully',
+      message: 'User data migration completed',
       results
     }), {
       status: 200,
