@@ -50,7 +50,6 @@ Respond ONLY with this JSON format:
     let analysis;
     try {
       const text = response.response || response.description || '';
-      console.log('AI Response:', text); // Debug logging
       
       const jsonMatch = text.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
@@ -94,7 +93,6 @@ Respond ONLY with this JSON format:
       description: analysis.description || 'Clothing item',
     };
 
-    console.log('Normalized analysis:', normalized); // Debug logging
     return normalized;
 
   } catch (error) {
@@ -193,7 +191,6 @@ Respond ONLY with JSON using EXACT item IDs:
     let aiOutfits = [];
     try {
       const text = response.response || '';
-      console.log('AI Outfit Response:', text); // Debug logging
       
       const jsonMatch = text.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
@@ -213,7 +210,6 @@ Respond ONLY with JSON using EXACT item IDs:
       // Create a unique key for this combination
       const combinationKey = aiOutfit.itemIds.sort().join('|');
       if (usedCombinations.has(combinationKey)) {
-        console.log('Skipping duplicate combination:', combinationKey);
         continue; // Skip duplicate combinations
       }
       
@@ -245,8 +241,6 @@ Respond ONLY with JSON using EXACT item IDs:
 
   // Enhanced fallback with smarter combinations and anti-redundancy
   if (outfits.length < 5) {
-    console.log('Using enhanced fallback outfit generation');
-    
     // Advanced color coordination with color theory
     const colorHarmony = {
       // Complementary colors
@@ -406,7 +400,6 @@ Respond ONLY with JSON using EXACT item IDs:
     }
   }
 
-  console.log(`Generated ${outfits.length} outfits`); // Debug logging
   return outfits.slice(0, 5);
 }
 

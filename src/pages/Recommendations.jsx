@@ -18,10 +18,8 @@ const Recommendations = () => {
     loadRecommendations();
   }, [preferences]);
 
-  // Listen for user sign-in events to refresh data
   useEffect(() => {
     const handleUserSignedIn = () => {
-      console.log('User signed in, refreshing recommendations...');
       loadRecommendations();
     };
 
@@ -35,14 +33,7 @@ const Recommendations = () => {
   const loadRecommendations = async () => {
     try {
       setLoading(true);
-      console.log('Loading recommendations with preferences:', preferences);
-      
-      const user = JSON.parse(localStorage.getItem('user') || '{}');
-      console.log('Current user:', user);
-      
       const data = await getOutfitRecommendations(preferences);
-      console.log('Received outfit data:', data);
-      
       setOutfits(Array.isArray(data) ? data : []);
       setCurrentIndex(0);
     } catch (error) {
@@ -55,11 +46,9 @@ const Recommendations = () => {
 
   const handleSwipe = async (direction) => {
     if (direction === 'right') {
-      // Save outfit as favorite
       try {
         const { saveFavoriteOutfit } = await import('../lib/api');
         await saveFavoriteOutfit(outfits[currentIndex]);
-        console.log('Saved outfit:', outfits[currentIndex]);
       } catch (error) {
         console.error('Failed to save outfit:', error);
       }
@@ -68,7 +57,6 @@ const Recommendations = () => {
     if (currentIndex < outfits.length - 1) {
       setCurrentIndex(currentIndex + 1);
     } else {
-      // Load more recommendations
       loadRecommendations();
     }
   };

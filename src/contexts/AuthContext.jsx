@@ -22,22 +22,9 @@ export const AuthProvider = ({ children }) => {
     }
     setLoading(false);
 
-    // Debug environment variables
-    console.log('Environment check:', {
-      VITE_OAUTHID: import.meta.env.VITE_OAUTHID,
-      PROD: import.meta.env.PROD,
-      DEV: import.meta.env.DEV,
-      MODE: import.meta.env.MODE
-    });
-
     // Initialize Google Sign-In with a delay to ensure the script is loaded
     const initializeGoogle = () => {
-      console.log('Attempting to initialize Google Sign-In...');
-      console.log('window.google available:', !!window.google);
-      console.log('window.google.accounts available:', !!(window.google && window.google.accounts));
-      
       if (window.google && window.google.accounts) {
-        console.log('Initializing Google Sign-In with client ID:', import.meta.env.VITE_OAUTHID);
         try {
           window.google.accounts.id.initialize({
             client_id: import.meta.env.VITE_OAUTHID,
@@ -45,13 +32,10 @@ export const AuthProvider = ({ children }) => {
             auto_select: false,
             cancel_on_tap_outside: true,
           });
-          console.log('Google Sign-In initialized successfully');
         } catch (error) {
           console.error('Error initializing Google Sign-In:', error);
         }
       } else {
-        console.log('Google Sign-In not ready, retrying in 100ms...');
-        // Retry after a short delay
         setTimeout(initializeGoogle, 100);
       }
     };
@@ -61,21 +45,11 @@ export const AuthProvider = ({ children }) => {
 
   const handleCredentialResponse = async (response) => {
     try {
-      console.log('Google credential received:', response);
-      console.log('Token length:', response.credential?.length);
-      console.log('Token preview:', response.credential?.substring(0, 50) + '...');
-      
-      // Get the current anonymous session ID before clearing it
       const anonymousSessionId = sessionStorage.getItem('anonymous_session_id');
-      console.log('Current anonymous session ID:', anonymousSessionId);
       
-      // Send the credential to your backend
       const apiUrl = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
         ? 'http://localhost:8787/api/auth/google'
         : 'https://whatrobe-api.rajayshashwat.workers.dev/api/auth/google';
-      
-      console.log('Using API URL:', apiUrl);
-      console.log('Environment PROD flag:', import.meta.env.PROD);
       
       const res = await fetch(apiUrl, {
         method: 'POST',
@@ -84,17 +58,12 @@ export const AuthProvider = ({ children }) => {
         },
         body: JSON.stringify({ token: response.credential }),
       });
-
-      console.log('Backend response status:', res.status);
-      console.log('Backend response headers:', Object.fromEntries(res.headers.entries()));
       
       if (res.ok) {
         const userData = await res.json();
-        console.log('User data received:', userData);
         
         // If there was an anonymous session, migrate the data
         if (anonymousSessionId && userData.user.id !== anonymousSessionId) {
-          console.log('Migrating data from anonymous session to authenticated user...');
           try {
             const migrationResponse = await fetch(`${apiUrl.replace('/auth/google', '/migrate/user-data')}`, {
               method: 'POST',
@@ -107,10 +76,7 @@ export const AuthProvider = ({ children }) => {
               }),
             });
             
-            if (migrationResponse.ok) {
-              const migrationResult = await migrationResponse.json();
-              console.log('Data migration successful:', migrationResult);
-            } else {
+            if (!migrationResponse.ok) {
               console.error('Data migration failed:', await migrationResponse.text());
             }
           } catch (migrationError) {
@@ -120,11 +86,8 @@ export const AuthProvider = ({ children }) => {
         
         setUser(userData.user);
         localStorage.setItem('user', JSON.stringify(userData.user));
-        
-        // Clear anonymous session data after successful migration
         sessionStorage.removeItem('anonymous_session_id');
         
-        // Close any open modals
         const event = new CustomEvent('userSignedIn');
         window.dispatchEvent(event);
       } else {
@@ -145,12 +108,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const signIn = () => {
-    console.log('signIn called');
-    console.log('Google available:', !!window.google);
-    console.log('Google accounts available:', !!(window.google && window.google.accounts));
-    
     if (window.google && window.google.accounts) {
-      console.log('Prompting Google Sign-In...');
       window.google.accounts.id.prompt();
     } else {
       console.error('Google Sign-In not available');

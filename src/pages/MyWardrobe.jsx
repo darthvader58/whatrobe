@@ -19,10 +19,8 @@ const MyWardrobe = () => {
     loadFavoriteOutfits();
   }, []);
 
-  // Listen for user sign-in events to refresh data
   useEffect(() => {
     const handleUserSignedIn = () => {
-      console.log('User signed in, refreshing wardrobe data...');
       loadItems();
       loadFavoriteOutfits();
     };
@@ -37,13 +35,11 @@ const MyWardrobe = () => {
   const loadItems = async () => {
     try {
       setLoading(true);
-      console.log('Loading clothing items...');
       const data = await getClothingItems();
-      console.log('Loaded items:', data);
       setItems(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Failed to load items:', error);
-      setItems([]); // Set empty array on error
+      setItems([]);
     } finally {
       setLoading(false);
     }
@@ -52,7 +48,6 @@ const MyWardrobe = () => {
   const loadFavoriteOutfits = async () => {
     try {
       const data = await getFavoriteOutfits();
-      console.log('Loaded favorite outfits:', data);
       setFavoriteOutfits(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Failed to load favorite outfits:', error);

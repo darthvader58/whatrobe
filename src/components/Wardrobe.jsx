@@ -3,8 +3,6 @@ import ClothingCard from './ClothingCard';
 import { Shirt } from 'lucide-react';
 
 const Wardrobe = ({ items = [], viewMode, onRefresh }) => {
-  console.log('Wardrobe rendering with items:', items);
-  
   if (!Array.isArray(items) || items.length === 0) {
     return (
       <div style={styles.empty}>

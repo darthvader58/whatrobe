@@ -2,51 +2,31 @@ const API_BASE = window.location.hostname === 'localhost' || window.location.hos
   ? 'http://localhost:8787/api'
   : 'https://whatrobe-api.rajayshashwat.workers.dev/api';
 
-console.log('API_BASE configured as:', API_BASE);
-console.log('Environment details:', {
-  'import.meta.env.PROD': import.meta.env.PROD,
-  'import.meta.env.DEV': import.meta.env.DEV,
-  'import.meta.env.MODE': import.meta.env.MODE,
-  'window.location.hostname': window.location.hostname,
-  'window.location.href': window.location.href,
-  'window.location.port': window.location.port
-});
-
-// Helper function to get full image URL
 export function getImageUrl(imageUrl) {
   try {
     if (!imageUrl) {
-      console.log('No image URL provided');
       return 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzAwIiBoZWlnaHQ9IjQwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZGRkIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCIgZm9udC1zaXplPSIxOCIgZmlsbD0iIzk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPk5vIEltYWdlPC90ZXh0Pjwvc3ZnPg==';
     }
     
-    // Extract the image ID from any URL format
     let imageId = null;
     if (typeof imageUrl === 'string') {
-      // Match /api/images/[id] pattern in any URL
       const match = imageUrl.match(/\/api\/images\/([^/?#]+)/);
       if (match) {
         imageId = match[1];
       }
     }
     
-    // If we found an image ID, construct the URL based on current environment
     if (imageId) {
       const baseUrl = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
         ? 'http://localhost:8787'
         : 'https://whatrobe-api.rajayshashwat.workers.dev';
-      const fullUrl = `${baseUrl}/api/images/${imageId}`;
-      console.log('Constructed URL for image ID', imageId, ':', fullUrl);
-      return fullUrl;
+      return `${baseUrl}/api/images/${imageId}`;
     }
     
-    // If it's already a full URL without /api/images/ pattern, return as is
     if (typeof imageUrl === 'string' && (imageUrl.startsWith('http://') || imageUrl.startsWith('https://'))) {
-      console.log('Using full URL as is:', imageUrl);
       return imageUrl;
     }
     
-    console.log('Returning image URL as is:', imageUrl);
     return imageUrl;
   } catch (error) {
     console.error('Error processing image URL:', error);
@@ -54,30 +34,20 @@ export function getImageUrl(imageUrl) {
   }
 }
 
-// Helper function for API calls
 async function apiCall(endpoint, options = {}) {
   const user = JSON.parse(localStorage.getItem('user') || 'null');
   
-  // If no user is authenticated, use a session-based anonymous ID
   let userId = 'anonymous';
   if (user && user.id) {
     userId = user.id;
-    console.log('Using authenticated user ID:', userId);
   } else {
-    // Create a session-based anonymous ID that persists during the session
     let sessionId = sessionStorage.getItem('anonymous_session_id');
     if (!sessionId) {
       sessionId = 'anon_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
       sessionStorage.setItem('anonymous_session_id', sessionId);
-      console.log('Created new anonymous session ID:', sessionId);
-    } else {
-      console.log('Using existing anonymous session ID:', sessionId);
     }
     userId = sessionId;
   }
-  
-  console.log('Making API call to:', `${API_BASE}${endpoint}`, 'with user ID:', userId);
-  console.log('Request options:', options);
   
   const response = await fetch(`${API_BASE}${endpoint}`, {
     headers: {
@@ -88,37 +58,28 @@ async function apiCall(endpoint, options = {}) {
     ...options,
   });
 
-  console.log('API response status:', response.status);
-  console.log('API response headers:', Object.fromEntries(response.headers.entries()));
-
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
-    console.error('API request failed:', error);
     throw new Error(error.message || 'API request failed');
   }
 
   const data = await response.json();
-  console.log('API response data:', data);
   
-  // Backup data to localStorage for persistence
   if (endpoint === '/clothing' && options.method !== 'DELETE') {
     const backupKey = `wardrobe_backup_${userId}`;
     localStorage.setItem(backupKey, JSON.stringify({
       timestamp: Date.now(),
       data: data
     }));
-    console.log('Backed up data to localStorage:', backupKey);
   }
   
   return data;
 }
 
-// Get all clothing items
 export async function getClothingItems(filters = {}) {
   const params = new URLSearchParams(filters);
   const data = await apiCall(`/clothing?${params}`);
   
-  // If API returns empty but we have backup data, use the backup
   if (Array.isArray(data) && data.length === 0) {
     const user = JSON.parse(localStorage.getItem('user') || 'null');
     const userId = user?.id || sessionStorage.getItem('anonymous_session_id') || 'anonymous';
@@ -128,8 +89,6 @@ export async function getClothingItems(filters = {}) {
     if (backup) {
       try {
         const backupData = JSON.parse(backup);
-        console.log('Using backup data from localStorage:', backupData);
-        // Return the backup data if it's recent (within 1 hour)
         if (Date.now() - backupData.timestamp < 3600000) {
           return Array.isArray(backupData.data) ? backupData.data : [backupData.data];
         }
@@ -147,11 +106,9 @@ export async function getClothingItem(id) {
   return apiCall(`/clothing/${id}`);
 }
 
-// Upload a new clothing item
 export async function uploadClothingItem(file) {
   const user = JSON.parse(localStorage.getItem('user') || 'null');
   
-  // Use the same user ID logic as apiCall
   let userId = 'anonymous';
   if (user && user.id) {
     userId = user.id;

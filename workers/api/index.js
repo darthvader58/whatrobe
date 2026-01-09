@@ -12,7 +12,7 @@ export default {
     try {
       await env.DB.prepare('PRAGMA foreign_keys = ON').run();
     } catch (error) {
-      console.log('Foreign keys already enabled or not supported');
+      // Foreign keys already enabled or not supported
     }
 
     // CORS headers
@@ -104,15 +104,9 @@ async function handleGoogleAuth(request, env) {
   const { token } = await request.json();
   
   try {
-    console.log('=== GOOGLE AUTH START ===');
-    console.log('Verifying Google token...', 'Token length:', token?.length);
-    
     // Verify Google ID token
     const response = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${token}`);
     const userInfo = await response.json();
-    
-    console.log('Google tokeninfo response status:', response.status);
-    console.log('Google tokeninfo response:', JSON.stringify(userInfo));
     
     if (!response.ok || userInfo.error) {
       const errorMsg = `Token verification failed: ${userInfo.error_description || userInfo.error || 'Unknown error'}`;
@@ -136,37 +130,23 @@ async function handleGoogleAuth(request, env) {
       throw new Error('Invalid token - no email');
     }
 
-    console.log('Token verified successfully for user:', userInfo.email, 'ID:', userInfo.sub);
-
     // Check if user already exists
     const existingUser = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(userInfo.sub).first();
-    console.log('Existing user check:', existingUser ? 'Found' : 'Not found');
 
     // Create or update user in database
     const timestamp = getCurrentTimestamp();
     
     if (existingUser) {
       // User exists - UPDATE only (preserves foreign key relationships)
-      const result = await env.DB.prepare(
+      await env.DB.prepare(
         'UPDATE users SET email = ?, name = ?, picture = ?, updated_at = ? WHERE id = ?'
       ).bind(userInfo.email, userInfo.name, userInfo.picture, timestamp, userInfo.sub).run();
-      console.log('User updated:', result);
     } else {
       // New user - INSERT
-      const result = await env.DB.prepare(
+      await env.DB.prepare(
         'INSERT INTO users (id, email, name, picture, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)'
       ).bind(userInfo.sub, userInfo.email, userInfo.name, userInfo.picture, timestamp, timestamp).run();
-      console.log('User created:', result);
     }
-    
-    console.log('User saved to database:', userInfo.sub);
-    
-    // Check user's current data
-    const clothingCount = await env.DB.prepare('SELECT COUNT(*) as count FROM clothing_items WHERE user_id = ?').bind(userInfo.sub).first();
-    const outfitsCount = await env.DB.prepare('SELECT COUNT(*) as count FROM outfits WHERE user_id = ?').bind(userInfo.sub).first();
-    console.log('User data summary - Clothing items:', clothingCount.count, 'Outfits:', outfitsCount.count);
-    
-    console.log('=== GOOGLE AUTH SUCCESS ===');
     
     return new Response(JSON.stringify({
       user: {
@@ -179,7 +159,7 @@ async function handleGoogleAuth(request, env) {
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (error) {
-    console.error('=== GOOGLE AUTH ERROR ===', error.message || error);
+    console.error('Google auth error:', error.message || error);
     return new Response(JSON.stringify({ 
       error: 'Authentication failed',
       details: error.message || 'Unknown error'
@@ -196,10 +176,6 @@ async function getClothingItems(request, env) {
   const category = url.searchParams.get('category');
   const userId = request.headers.get('X-User-ID') || 'anonymous';
 
-  console.log('=== GET CLOTHING ITEMS ===');
-  console.log('getClothingItems called with userId:', userId, 'category:', category);
-  console.log('Request headers:', Object.fromEntries(request.headers.entries()));
-
   let query = 'SELECT * FROM clothing_items WHERE user_id = ?';
   const params = [userId];
 
@@ -210,21 +186,14 @@ async function getClothingItems(request, env) {
 
   query += ' ORDER BY created_at DESC';
 
-  console.log('Executing query:', query, 'with params:', params);
   const { results } = await env.DB.prepare(query).bind(...params).all();
-  console.log('Query returned', results.length, 'results for user:', userId);
 
   // Parse JSON fields and map database fields to frontend format
-  const items = results.map(item => {
-    console.log('Processing item:', item.id, 'image_url:', item.image_url);
-    return {
-      ...item,
-      imageUrl: item.image_url, // Map snake_case to camelCase
-      tags: item.tags ? JSON.parse(item.tags) : [],
-    };
-  });
-  
-  console.log('=== RETURNING', items.length, 'ITEMS ===');
+  const items = results.map(item => ({
+    ...item,
+    imageUrl: item.image_url,
+    tags: item.tags ? JSON.parse(item.tags) : [],
+  }));
 
   return new Response(JSON.stringify(items), {
     headers: { 'Content-Type': 'application/json' },
@@ -260,9 +229,6 @@ async function uploadClothingItem(request, env) {
   const imageFile = formData.get('image');
   const userId = request.headers.get('X-User-ID') || 'anonymous';
 
-  console.log('=== UPLOAD CLOTHING ITEM START ===');
-  console.log('User ID:', userId);
-
   if (!imageFile) {
     return new Response(JSON.stringify({ error: 'No image provided' }), {
       status: 400,
@@ -273,11 +239,9 @@ async function uploadClothingItem(request, env) {
   try {
     // Ensure user exists (create anonymous user if needed)
     const timestamp = getCurrentTimestamp();
-    const userResult = await env.DB.prepare(
+    await env.DB.prepare(
       'INSERT OR IGNORE INTO users (id, email, name, picture, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)'
     ).bind(userId, `${userId}@anonymous.com`, 'Anonymous User', '', timestamp, timestamp).run();
-    
-    console.log('User creation result:', userResult);
 
     // Generate unique ID for the image
     const imageId = generateId();
@@ -298,15 +262,8 @@ async function uploadClothingItem(request, env) {
 
     // Store in database
     const id = generateId();
-    
-    console.log('Inserting clothing item:', {
-      id,
-      userId,
-      imageUrl,
-      category: analysis.category
-    });
 
-    const insertResult = await env.DB.prepare(
+    await env.DB.prepare(
       `INSERT INTO clothing_items 
       (id, user_id, image_url, image_id, category, color, secondary_color, style, fit, season, pattern, material, brand, formality, tags, description, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
@@ -332,22 +289,13 @@ async function uploadClothingItem(request, env) {
         timestamp
       )
       .run();
-
-    console.log('Insert result:', insertResult);
     
     // Verify the item was saved
     const verifyResult = await env.DB.prepare('SELECT id FROM clothing_items WHERE id = ?').bind(id).first();
-    console.log('Verification result:', verifyResult);
     
     if (!verifyResult) {
       throw new Error('Failed to save clothing item to database');
     }
-    
-    // Check total items for user
-    const countResult = await env.DB.prepare('SELECT COUNT(*) as count FROM clothing_items WHERE user_id = ?').bind(userId).first();
-    console.log('Total items for user:', countResult.count);
-    
-    console.log('=== UPLOAD CLOTHING ITEM SUCCESS ===');
 
     return new Response(JSON.stringify({
       id,
@@ -358,7 +306,7 @@ async function uploadClothingItem(request, env) {
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (error) {
-    console.error('=== UPLOAD CLOTHING ITEM ERROR ===', error);
+    console.error('Upload clothing item error:', error);
     return new Response(JSON.stringify({ error: 'Failed to upload image' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
@@ -782,26 +730,14 @@ async function migrateUserData(request, env) {
         headers: { 'Content-Type': 'application/json' },
       });
     }
-
-    console.log(`=== MIGRATION START: ${fromUserId} -> ${toUserId} ===`);
     
     // Check if the target user already has data
     const existingClothing = await env.DB.prepare('SELECT COUNT(*) as count FROM clothing_items WHERE user_id = ?').bind(toUserId).first();
     const existingOutfits = await env.DB.prepare('SELECT COUNT(*) as count FROM outfits WHERE user_id = ?').bind(toUserId).first();
     
-    console.log('Target user existing data:', {
-      clothing: existingClothing.count,
-      outfits: existingOutfits.count
-    });
-    
     // Check if the source user has data to migrate
     const sourceClothing = await env.DB.prepare('SELECT COUNT(*) as count FROM clothing_items WHERE user_id = ?').bind(fromUserId).first();
     const sourceOutfits = await env.DB.prepare('SELECT COUNT(*) as count FROM outfits WHERE user_id = ?').bind(fromUserId).first();
-    
-    console.log('Source user data to migrate:', {
-      clothing: sourceClothing.count,
-      outfits: sourceOutfits.count
-    });
     
     const results = {};
     
@@ -811,7 +747,6 @@ async function migrateUserData(request, env) {
         'UPDATE clothing_items SET user_id = ? WHERE user_id = ?'
       ).bind(toUserId, fromUserId).run();
       results.clothing_items_migrated = clothingResult.changes;
-      console.log('Migrated clothing items:', clothingResult.changes);
     } else {
       results.clothing_items_migrated = 0;
       results.clothing_skip_reason = existingClothing.count > 0 ? 'target_has_data' : 'source_empty';
@@ -823,7 +758,6 @@ async function migrateUserData(request, env) {
         'UPDATE outfits SET user_id = ? WHERE user_id = ?'
       ).bind(toUserId, fromUserId).run();
       results.outfits_migrated = outfitsResult.changes;
-      console.log('Migrated outfits:', outfitsResult.changes);
     } else {
       results.outfits_migrated = 0;
       results.outfits_skip_reason = existingOutfits.count > 0 ? 'target_has_data' : 'source_empty';
@@ -834,8 +768,6 @@ async function migrateUserData(request, env) {
       'UPDATE user_preferences SET user_id = ? WHERE user_id = ?'
     ).bind(toUserId, fromUserId).run();
     results.preferences_migrated = preferencesResult.changes;
-    
-    console.log('=== MIGRATION COMPLETE ===', results);
     
     return new Response(JSON.stringify({
       success: true,
