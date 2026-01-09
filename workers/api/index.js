@@ -60,6 +60,10 @@ export default {
         response = await debugUserData(userId, env);
       } else if (path === '/api/debug/headers' && request.method === 'GET') {
         response = await debugHeaders(request, env);
+      } else if (path === '/api/backup/user-data' && request.method === 'POST') {
+        response = await backupUserData(request, env);
+      } else if (path === '/api/restore/user-data' && request.method === 'POST') {
+        response = await restoreUserData(request, env);
       } else if (path.match(/^\/api\/images\/[\w-]+$/) && request.method === 'GET') {
         const imageId = path.split('/').pop();
         response = await getImage(imageId, env);
@@ -239,6 +243,9 @@ async function uploadClothingItem(request, env) {
   const imageFile = formData.get('image');
   const userId = request.headers.get('X-User-ID') || 'anonymous';
 
+  console.log('=== UPLOAD CLOTHING ITEM START ===');
+  console.log('User ID:', userId);
+
   if (!imageFile) {
     return new Response(JSON.stringify({ error: 'No image provided' }), {
       status: 400,
@@ -249,9 +256,11 @@ async function uploadClothingItem(request, env) {
   try {
     // Ensure user exists (create anonymous user if needed)
     const timestamp = getCurrentTimestamp();
-    await env.DB.prepare(
+    const userResult = await env.DB.prepare(
       'INSERT OR IGNORE INTO users (id, email, name, picture, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)'
     ).bind(userId, `${userId}@anonymous.com`, 'Anonymous User', '', timestamp, timestamp).run();
+    
+    console.log('User creation result:', userResult);
 
     // Generate unique ID for the image
     const imageId = generateId();
@@ -272,8 +281,15 @@ async function uploadClothingItem(request, env) {
 
     // Store in database
     const id = generateId();
+    
+    console.log('Inserting clothing item:', {
+      id,
+      userId,
+      imageUrl,
+      category: analysis.category
+    });
 
-    await env.DB.prepare(
+    const insertResult = await env.DB.prepare(
       `INSERT INTO clothing_items 
       (id, user_id, image_url, image_id, category, color, secondary_color, style, fit, season, pattern, material, brand, formality, tags, description, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
@@ -300,6 +316,22 @@ async function uploadClothingItem(request, env) {
       )
       .run();
 
+    console.log('Insert result:', insertResult);
+    
+    // Verify the item was saved
+    const verifyResult = await env.DB.prepare('SELECT id FROM clothing_items WHERE id = ?').bind(id).first();
+    console.log('Verification result:', verifyResult);
+    
+    if (!verifyResult) {
+      throw new Error('Failed to save clothing item to database');
+    }
+    
+    // Check total items for user
+    const countResult = await env.DB.prepare('SELECT COUNT(*) as count FROM clothing_items WHERE user_id = ?').bind(userId).first();
+    console.log('Total items for user:', countResult.count);
+    
+    console.log('=== UPLOAD CLOTHING ITEM SUCCESS ===');
+
     return new Response(JSON.stringify({
       id,
       imageUrl,
@@ -309,7 +341,7 @@ async function uploadClothingItem(request, env) {
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (error) {
-    console.error('Upload error:', error);
+    console.error('=== UPLOAD CLOTHING ITEM ERROR ===', error);
     return new Response(JSON.stringify({ error: 'Failed to upload image' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
@@ -869,6 +901,132 @@ async function debugHeaders(request, env) {
     console.error('Debug headers error:', error);
     return new Response(JSON.stringify({ 
       error: 'Failed to debug headers',
+      message: error.message 
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+// Backup user data to KV storage for persistence
+async function backupUserData(request, env) {
+  try {
+    const { userId } = await request.json();
+    
+    if (!userId) {
+      return new Response(JSON.stringify({ error: 'User ID required' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Get user data
+    const user = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(userId).first();
+    const clothingItems = await env.DB.prepare('SELECT * FROM clothing_items WHERE user_id = ?').bind(userId).all();
+    const outfits = await env.DB.prepare('SELECT * FROM outfits WHERE user_id = ?').bind(userId).all();
+    
+    const backup = {
+      timestamp: new Date().toISOString(),
+      user: user,
+      clothingItems: clothingItems.results,
+      outfits: outfits.results
+    };
+    
+    // Store in KV for persistence
+    await env.KV?.put(`backup:${userId}`, JSON.stringify(backup));
+    
+    return new Response(JSON.stringify({
+      success: true,
+      message: 'User data backed up successfully',
+      itemCount: clothingItems.results.length,
+      outfitCount: outfits.results.length
+    }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (error) {
+    console.error('Backup error:', error);
+    return new Response(JSON.stringify({ 
+      error: 'Failed to backup user data',
+      message: error.message 
+    }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+// Restore user data from KV storage
+async function restoreUserData(request, env) {
+  try {
+    const { userId } = await request.json();
+    
+    if (!userId) {
+      return new Response(JSON.stringify({ error: 'User ID required' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Get backup from KV
+    const backupData = await env.KV?.get(`backup:${userId}`);
+    
+    if (!backupData) {
+      return new Response(JSON.stringify({ error: 'No backup found for user' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    
+    const backup = JSON.parse(backupData);
+    const timestamp = getCurrentTimestamp();
+    
+    // Restore user
+    if (backup.user) {
+      await env.DB.prepare(
+        'INSERT OR REPLACE INTO users (id, email, name, picture, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)'
+      ).bind(backup.user.id, backup.user.email, backup.user.name, backup.user.picture, backup.user.created_at, timestamp).run();
+    }
+    
+    // Restore clothing items
+    for (const item of backup.clothingItems) {
+      await env.DB.prepare(
+        `INSERT OR REPLACE INTO clothing_items 
+        (id, user_id, image_url, image_id, category, color, secondary_color, style, fit, season, pattern, material, brand, formality, tags, description, embedding_id, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).bind(
+        item.id, item.user_id, item.image_url, item.image_id, item.category, item.color, 
+        item.secondary_color, item.style, item.fit, item.season, item.pattern, item.material, 
+        item.brand, item.formality, item.tags, item.description, item.embedding_id, 
+        item.created_at, timestamp
+      ).run();
+    }
+    
+    // Restore outfits
+    for (const outfit of backup.outfits) {
+      await env.DB.prepare(
+        `INSERT OR REPLACE INTO outfits 
+        (id, user_id, name, occasion, style, weather, items, ai_reason, is_favorite, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).bind(
+        outfit.id, outfit.user_id, outfit.name, outfit.occasion, outfit.style, outfit.weather,
+        outfit.items, outfit.ai_reason, outfit.is_favorite, outfit.created_at, timestamp
+      ).run();
+    }
+    
+    return new Response(JSON.stringify({
+      success: true,
+      message: 'User data restored successfully',
+      itemCount: backup.clothingItems.length,
+      outfitCount: backup.outfits.length,
+      backupTimestamp: backup.timestamp
+    }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (error) {
+    console.error('Restore error:', error);
+    return new Response(JSON.stringify({ 
+      error: 'Failed to restore user data',
       message: error.message 
     }), {
       status: 500,

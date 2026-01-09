@@ -99,13 +99,47 @@ async function apiCall(endpoint, options = {}) {
 
   const data = await response.json();
   console.log('API response data:', data);
+  
+  // Backup data to localStorage for persistence
+  if (endpoint === '/clothing' && options.method !== 'DELETE') {
+    const backupKey = `wardrobe_backup_${userId}`;
+    localStorage.setItem(backupKey, JSON.stringify({
+      timestamp: Date.now(),
+      data: data
+    }));
+    console.log('Backed up data to localStorage:', backupKey);
+  }
+  
   return data;
 }
 
 // Get all clothing items
 export async function getClothingItems(filters = {}) {
   const params = new URLSearchParams(filters);
-  return apiCall(`/clothing?${params}`);
+  const data = await apiCall(`/clothing?${params}`);
+  
+  // If API returns empty but we have backup data, use the backup
+  if (Array.isArray(data) && data.length === 0) {
+    const user = JSON.parse(localStorage.getItem('user') || 'null');
+    const userId = user?.id || sessionStorage.getItem('anonymous_session_id') || 'anonymous';
+    const backupKey = `wardrobe_backup_${userId}`;
+    const backup = localStorage.getItem(backupKey);
+    
+    if (backup) {
+      try {
+        const backupData = JSON.parse(backup);
+        console.log('Using backup data from localStorage:', backupData);
+        // Return the backup data if it's recent (within 1 hour)
+        if (Date.now() - backupData.timestamp < 3600000) {
+          return Array.isArray(backupData.data) ? backupData.data : [backupData.data];
+        }
+      } catch (error) {
+        console.error('Error parsing backup data:', error);
+      }
+    }
+  }
+  
+  return data;
 }
 
 // Get a single clothing item
